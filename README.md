@@ -1,6 +1,6 @@
-# RecruitGraph
+# RAVEN
 
-RecruitGraph is an advanced recruitment intelligence and network mapping tool developed to help job seekers intelligently discover connections and analyze recruiter expectations. Operating at the intersection of professional networking and repository analysis, it empowers developers to uncover the most direct paths to hiring managers while auditing how well their public code portfolios align with a recruiter's desired tech stack constraints.
+RAVEN is an advanced recruitment intelligence and network mapping tool developed to help job seekers intelligently discover connections and analyze recruiter expectations. Operating at the intersection of professional networking and repository analysis, it empowers developers to uncover the most direct paths to hiring managers while auditing how well their public code portfolios align with a recruiter's desired tech stack constraints.
 
 The platform is split into two primary modules backed by a sophisticated graph database architecture. **Module 1 (Path Finder)** performs multi-hop shortest-path traversals across a simulated or live LinkedIn graph utilizing TigerGraph's GSQL to identify hidden connection chains (bridge nodes). **Module 2 (Tech Stack Analyzer)** leverages Google's Gemini LLM to interpret a recruiter's job bio, extracts the demanded technologies, and simultaneously clones a candidate's GitHub repositories to compute a "blast radius"—mapping precisely which files depend on those specific technologies.
 
