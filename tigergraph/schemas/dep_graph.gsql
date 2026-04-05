@@ -1,0 +1,45 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// DepGraph Schema — Module 2: Tech Stack Analyzer / Blast Radius
+// Run with: gsql dep_graph.gsql
+// ─────────────────────────────────────────────────────────────────────────────
+
+USE GLOBAL
+
+// ── Vertices ─────────────────────────────────────────────────────────────────
+
+// A published library/package in any ecosystem.
+CREATE VERTEX LibNode (
+  PRIMARY_ID name   STRING,
+  version           STRING DEFAULT "",
+  ecosystem         STRING DEFAULT ""   // "cargo" | "npm" | "pip"
+) WITH primary_id_as_attribute="true"
+
+// A source file inside a repository.
+CREATE VERTEX FileNode (
+  PRIMARY_ID path   STRING,
+  repo              STRING DEFAULT "",
+  language          STRING DEFAULT ""
+) WITH primary_id_as_attribute="true"
+
+// ── Edges ─────────────────────────────────────────────────────────────────────
+
+// FileNode imports a LibNode (e.g. `import react`).
+CREATE DIRECTED EDGE IMPORTS (
+  FROM FileNode, TO LibNode,
+  import_count  INT DEFAULT 1
+)
+
+// FileNode calls/references another FileNode.
+CREATE DIRECTED EDGE CALLS (
+  FROM FileNode, TO FileNode
+)
+
+// One library transitively depends on another.
+CREATE DIRECTED EDGE LIB_DEPENDS_ON (
+  FROM LibNode, TO LibNode,
+  is_dev_dep  BOOL DEFAULT "false"
+)
+
+// ── Graph ─────────────────────────────────────────────────────────────────────
+
+CREATE GRAPH DepGraph (LibNode, FileNode, IMPORTS, CALLS, LIB_DEPENDS_ON)

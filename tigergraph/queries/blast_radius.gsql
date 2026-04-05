@@ -1,0 +1,94 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// blastRadius — Installed query on DepGraph
+//
+// Starting from a LibNode, finds every FileNode that (transitively) imports it,
+// and then every FileNode that calls those files. Tracks traversal depth.
+//
+// Parameters:
+//   lib_name — PRIMARY_ID of the root LibNode
+//   max_hops — maximum traversal depth (default 4)
+//
+// Returns (for each reached FileNode):
+//   path   STRING — file path
+//   repo   STRING — repository the file belongs to
+//   depth  INT    — how many hops from the root lib
+//
+// Results ordered by depth ASC, then path ASC.
+// ─────────────────────────────────────────────────────────────────────────────
+
+CREATE QUERY blastRadius (
+  STRING lib_name,
+  INT    max_hops = 4
+) FOR GRAPH DepGraph {
+
+  // ── Accumulator declarations ─────────────────────────────────────────────
+
+  // @depth: shallowest hop depth at which this vertex was first reached.
+  SumAccum<INT>  @depth;
+
+  // @@visited: global guard to prevent revisiting any vertex.
+  SetAccum<VERTEX> @@visited;
+
+  // Result tuple type for final PRINT.
+  TYPEDEF TUPLE<STRING file_path, STRING repo, INT depth> FileImpact;
+  ListAccum<FileImpact> @@results;
+
+  // ── Seed: locate the root LibNode ────────────────────────────────────────
+
+  AllLibs = { LibNode.* };
+  RootLib = SELECT l FROM AllLibs:l WHERE l.name == lib_name;
+
+  IF RootLib.size() == 0 THEN
+    PRINT "Library not found" AS error;
+    RETURN;
+  END;
+
+  @@visited += RootLib;
+
+  // ── Hop 1: find FileNodes that directly IMPORT this lib (reverse IMPORTS) ─
+
+  // IMPORTS is directed FileNode → LibNode.
+  // We want callers, so traverse IN reverse direction.
+  INT hop = 1;
+
+  DirectImporters = SELECT f
+    FROM RootLib:l - (IMPORTS:e BY GT) - FileNode:f
+    // GT = generic traversal respecting edge direction; reversed for incoming.
+    WHERE f NOT IN @@visited
+    ACCUM f.@depth += hop
+    POST-ACCUM @@visited += f;
+
+  // Collect direct importers into results.
+  DirectImporters = SELECT f FROM DirectImporters:f
+    POST-ACCUM @@results += FileImpact(f.path, f.repo, f.@depth);
+
+  // CurrentFiles grows hop-by-hop as we follow CALLS edges outward.
+  CurrentFiles (ANY) = DirectImporters;
+  hop = hop + 1;
+
+  // ── Hops 2…max_hops: follow CALLS edges outward from reached FileNodes ───
+
+  WHILE CurrentFiles.size() > 0 AND hop <= max_hops DO
+
+    CurrentFiles = SELECT nbr
+      FROM CurrentFiles:f - (CALLS:e) -> FileNode:nbr
+      WHERE nbr NOT IN @@visited
+      ACCUM nbr.@depth += hop
+      POST-ACCUM @@visited += nbr;
+
+    // Accumulate newly reached files at this depth.
+    CurrentFiles = SELECT f FROM CurrentFiles:f
+      POST-ACCUM @@results += FileImpact(f.path, f.repo, f.@depth);
+
+    hop = hop + 1;
+
+  END; // WHILE
+
+  // ── Emit results ordered by depth ASC, path ASC ─────────────────────────
+
+  // GSQL does not support ORDER BY on ListAccum directly.
+  // Sort is handled by the Python client after deserialising @@results.
+  PRINT @@results AS blast_radius;
+}
+
+INSTALL QUERY blastRadius

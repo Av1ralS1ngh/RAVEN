@@ -1,0 +1,260 @@
+"""Module 1 API routes — Network Path Finder.
+
+Endpoints:
+  POST /api/v1/path/find   — discover the shortest LinkedIn connection path
+  GET  /api/v1/path/health — liveness + TigerGraph connectivity check
+"""
+
+from __future__ import annotations
+
+import logging
+import time
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+
+from app.api.deps import SettingsDep, get_tg_client
+from app.models.path_models import (
+    PathRequest,
+    PathResponse,
+    PathResult,
+    PersonSummary,
+)
+from app.services.linkedin_scraper import (
+    LinkedInAuthError,
+    LinkedInRateLimitError,
+    LinkedInScraper,
+)
+from app.services.tigergraph_client import (
+    PersonNode,
+    TigerGraphClient,
+    TigerGraphError,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /find
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/find",
+    response_model=PathResponse,
+    summary="Find shortest LinkedIn connection path",
+)
+async def find_path(
+    request_body: PathRequest,
+    settings: SettingsDep,
+    tg_client: TigerGraphClient = Depends(get_tg_client),
+) -> PathResponse:
+    """Discover the shortest connection path between the caller and a recruiter.
+
+    Flow:
+      1. Authenticate with LinkedIn and fetch the recruiter's profile.
+      2. Crawl the caller's 2-hop connection graph.
+      3. Upsert all discovered persons + edges into TigerGraph (PersonGraph).
+      4. Run the ``shortestPath`` installed query.
+      5. Map the raw TigerGraph result into a typed PathResult.
+
+    Error mapping:
+      - 401  LinkedInAuthError (bad credentials / expired session)
+      - 429  LinkedInRateLimitError (persistent rate limiting)
+      - 500  TigerGraphError or any unexpected exception
+    """
+    t_start = time.monotonic()
+
+    # ── Demo / mock-data fast path ────────────────────────────────────────────
+    # Activated when DEMO_MODE=true in .env OR when no LinkedIn credentials set.
+    is_demo = getattr(settings, "demo_mode", False) or not getattr(settings, "linkedin_username", None)
+    
+    if is_demo:
+        logger.info("[Path] DEMO_MODE active — bypassing LinkedIn auth and scraping.")
+        # Re-use our realistic mock data for the node lookup
+        from app.data.mock_graph import ALL_PERSONS, PERSON_INDEX
+        
+        # 1. Resolve Recruiter
+        norm_url = str(request_body.recruiter_url).rstrip("/").lower()
+        recruiter_node = next((p for p in ALL_PERSONS if p.linkedin_url.rstrip("/").lower() == norm_url), None)
+        if not recruiter_node:
+            slug = norm_url.rsplit("/in/", 1)[-1].split("?")[0]
+            recruiter_node = PERSON_INDEX.get(slug)
+        if not recruiter_node:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Recruiter not found in Demo graph. Please try a known founder or use realistic linkedin slug."
+            )
+            
+        all_persons = ALL_PERSONS
+        edges = []
+        
+        # TigerGraph is already seeded with this demo data by the seed script.
+        # We skip upserting and go straight to query.
+    else:
+        # ── 1. Scraper setup + recruiter profile ─────────────────────────────────
+        try:
+            scraper = LinkedInScraper(
+                username=settings.linkedin_username,
+                password=settings.linkedin_password,
+            )
+        except LinkedInAuthError as exc:
+            logger.error("LinkedIn auth failed: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(exc),
+            ) from exc
+
+        try:
+            recruiter_node = await scraper.get_profile(str(request_body.recruiter_url))
+        except LinkedInAuthError as exc:
+            logger.warning("LinkedIn auth failed: %s", exc)
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+        except LinkedInRateLimitError as exc:
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        except Exception as exc:
+            logger.exception("Unexpected error fetching recruiter profile")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+        # ── 2. Crawl caller's 2-hop graph ────────────────────────────────────────
+        try:
+            persons, edges = await scraper.get_connections(
+                profile_id=request_body.your_linkedin_id,
+                depth=2,
+            )
+        except LinkedInAuthError as exc:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+        except LinkedInRateLimitError as exc:
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc)) from exc
+        except Exception as exc:
+            logger.exception("Error crawling connection graph")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+        all_persons = _merge_persons(persons, [recruiter_node])
+
+    total_mapped = len(all_persons)
+
+    # ── 3. Upsert into TigerGraph (Prod Only) ─────────────────────────────────
+    if not is_demo:
+        try:
+            tg_client.upsert_persons(all_persons, edges)
+        except TigerGraphError as exc:
+            logger.error("TigerGraph upsert failed: %s", exc)
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+        except Exception as exc:
+            logger.exception("Unexpected error during upsert")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+    # ── 4. Run shortest-path query ────────────────────────────────────────────
+    try:
+        tg_result = tg_client.run_shortest_path(
+            src_id=request_body.your_linkedin_id,
+            tgt_id=recruiter_node.id,
+            max_hops=request_body.max_hops,
+        )
+    except TigerGraphError as exc:
+        logger.error("Shortest path query failed: %s", exc)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error running shortest path query")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+    # ── 5. Map result ─────────────────────────────────────────────────────────
+    query_time_ms = (time.monotonic() - t_start) * 1000
+
+    # Build an id→PersonNode lookup from our crawl results for enrichment.
+    person_index: dict[str, PersonNode] = {p.id: p for p in all_persons}
+
+    primary_path = _map_tg_path(tg_result.get("path", []), person_index)
+    hop_count = int(tg_result.get("hop_count", len(primary_path) - 1))
+
+    result = PathResult(
+        path=primary_path,
+        hop_count=hop_count,
+        alternative_paths=[],        # TigerGraph shortestPath returns one path;
+                                     # alternatives require k-path query (future).
+        total_connections_mapped=total_mapped,
+        query_time_ms=round(query_time_ms, 2),
+    )
+
+    return PathResponse(success=True, data=result)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /health
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.get("/health", summary="Path module liveness check")
+async def path_health(
+    tg_client: TigerGraphClient = Depends(get_tg_client),
+) -> dict[str, Any]:
+    """Return liveness status and TigerGraph connectivity for PersonGraph."""
+    tg_connected = False
+    try:
+        # Lightweight ping: echo an empty GSQL. Any successful response means
+        # the connection is live.
+        tg_client.conn_person.echo()
+        tg_connected = True
+    except Exception:
+        pass
+
+    return {
+        "status": "ok",
+        "graph": "PersonGraph",
+        "tg_connected": tg_connected,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Private helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _map_tg_path(
+    raw_path: list[Any],
+    index: dict[str, PersonNode],
+) -> list[PersonSummary]:
+    """Convert the raw TigerGraph path list to PersonSummary objects.
+
+    TigerGraph may return path vertices as string IDs, or as dicts with
+    ``v_id`` and ``attributes``. We enrich with our local crawl data where
+    attributes may be richer.
+    """
+    summaries: list[PersonSummary] = []
+    for entry in raw_path:
+        if isinstance(entry, dict):
+            v_id: str = entry.get("v_id", "")
+            attrs: dict = entry.get("attributes", {})
+        else:
+            v_id = str(entry)
+            attrs = {}
+            
+        node = index.get(v_id)
+
+        summaries.append(
+            PersonSummary(
+                id=v_id,
+                name=getattr(node, "name", attrs.get("name", v_id)),
+                headline=getattr(node, "headline", attrs.get("headline", "")),
+                company=getattr(node, "company", attrs.get("company", "")),
+                linkedin_url=getattr(node, "linkedin_url", attrs.get("linkedin_url", f"https://linkedin.com/in/{v_id}")),
+                mutual_count=getattr(node, "mutual_count", attrs.get("mutual_count", 0)),
+            )
+        )
+    return summaries
+
+
+def _merge_persons(
+    existing: list[PersonNode],
+    extras: list[PersonNode],
+) -> list[PersonNode]:
+    """Merge two PersonNode lists, deduplicating by id. Extras take priority."""
+    index: dict[str, PersonNode] = {p.id: p for p in existing}
+    for p in extras:
+        index[p.id] = p
+    return list(index.values())

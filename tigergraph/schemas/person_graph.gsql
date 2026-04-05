@@ -1,0 +1,32 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// PersonGraph Schema — Module 1: Network Path Finder
+// Run with: gsql person_graph.gsql
+// ─────────────────────────────────────────────────────────────────────────────
+
+USE GLOBAL
+
+// ── Vertices ─────────────────────────────────────────────────────────────────
+
+CREATE VERTEX Person (
+  PRIMARY_ID id         STRING,
+  name                  STRING,
+  headline              STRING DEFAULT "",
+  company               STRING DEFAULT "",
+  linkedin_url          STRING,
+  profile_image_url     STRING DEFAULT ""
+) WITH primary_id_as_attribute="true"
+
+// ── Edges ─────────────────────────────────────────────────────────────────────
+
+// Undirected: mutual connections between two people.
+// mutual_count: number of shared connections (signals path strength).
+// strength: normalised 0–1 tie strength used by shortestPath scoring.
+CREATE UNDIRECTED EDGE CONNECTED_TO (
+  FROM Person, TO Person,
+  mutual_count  INT   DEFAULT 0,
+  strength      FLOAT DEFAULT 0.5
+)
+
+// ── Graph ─────────────────────────────────────────────────────────────────────
+
+CREATE GRAPH PersonGraph (Person, CONNECTED_TO)

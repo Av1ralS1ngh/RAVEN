@@ -1,0 +1,50 @@
+@import 'tailwindcss';
+@config '../tailwind.config.ts';
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  src: url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-display: swap;
+  src: url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: #000000;
+    color: #e2e2e2;
+    min-height: 100vh;
+  }
+
+  /* Simple custom scrollbar for the dark theme */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #000000; }
+  ::-webkit-scrollbar-thumb { background: #222222; }
+  ::-webkit-scrollbar-thumb:hover { background: #333333; }
+
+  /* Space Grotesk for all numeric/data elements */
+  [data-mono],
+  .font-mono {
+    font-family: 'Space Grotesk', monospace;
+  }
+}

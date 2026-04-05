@@ -1,0 +1,132 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// shortestPath — Installed query on PersonGraph
+//
+// Finds the shortest connection chain between two Person vertices using BFS.
+// Returns the path as an ordered list of vertices (src → … → tgt) and the
+// number of hops taken.
+//
+// Parameters:
+//   src_id   — PRIMARY_ID of the source Person
+//   tgt_id   — PRIMARY_ID of the target Person
+//   max_hops — abort BFS after this many hops (default 6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+CREATE QUERY shortestPath (
+  STRING src_id,
+  STRING tgt_id,
+  INT    max_hops = 6
+) FOR GRAPH PersonGraph {
+
+  // ── Accumulator declarations ─────────────────────────────────────────────
+
+  // @parent: for each reached vertex, store the vertex we came from.
+  // Allows path reconstruction by walking backwards from tgt → src.
+  MapAccum<VERTEX, VERTEX>  @parent;
+
+  // @@visited: global set of vertices already enqueued — prevents cycles.
+  SetAccum<VERTEX>          @@visited;
+
+  // @@found: flipped to TRUE once the target is reached.
+  OrAccum<BOOL>             @@found;
+
+  // @@path: final ordered path src → … → tgt.
+  ListAccum<VERTEX>         @@path;
+
+  // @@hop_count: number of hops in the found path.
+  SumAccum<INT>             @@hop_count;
+
+  // ── Seed ────────────────────────────────────────────────────────────────
+
+  // Validate that src and tgt exist.
+  Source = { Person.* };
+  SrcSet = SELECT s FROM Source:s WHERE s.id == src_id;
+
+  IF SrcSet.size() == 0 THEN
+    PRINT "Source vertex not found" AS error;
+    RETURN;
+  END;
+
+  // Initialise BFS frontier with the source vertex.
+  // Mark source as visited and give it a sentinel self-parent.
+  Frontier (ANY) = SELECT s
+    FROM SrcSet:s
+    ACCUM
+      s.@parent += (s -> s),
+      @@visited += s;
+
+  // Check immediate hit (src == tgt).
+  IF src_id == tgt_id THEN
+    @@found += TRUE;
+    @@path += SrcSet;
+    @@hop_count = 0;
+    PRINT @@path AS path, @@hop_count AS hop_count;
+    RETURN;
+  END;
+
+  // ── BFS ─────────────────────────────────────────────────────────────────
+
+  INT hop = 0;
+
+  WHILE Frontier.size() > 0 AND hop < max_hops AND @@found == FALSE DO
+
+    hop = hop + 1;
+
+    // Expand one hop: traverse CONNECTED_TO in both directions (undirected).
+    Frontier = SELECT nbr
+      FROM Frontier:f - (CONNECTED_TO:e) - Person:nbr
+      WHERE nbr NOT IN @@visited
+      ACCUM
+        // Only set parent on first discovery (BFS guarantees shortest).
+        IF nbr.@parent.size() == 0 THEN
+          nbr.@parent += (nbr -> f)
+        END,
+        // Check if we've reached the target.
+        IF nbr.id == tgt_id THEN
+          @@found += TRUE
+        END
+      POST-ACCUM
+        @@visited += nbr;
+
+    IF @@found THEN
+      @@hop_count = hop;
+    END;
+
+  END; // WHILE
+
+  // ── Path reconstruction ─────────────────────────────────────────────────
+
+  IF @@found == FALSE THEN
+    PRINT "No path found within max_hops" AS error;
+    RETURN;
+  END;
+
+  // Walk parent pointers backwards from tgt to src, then reverse.
+  TgtSet = SELECT t FROM { Person.* }:t WHERE t.id == tgt_id;
+
+  ListAccum<VERTEX> @@rev_path;
+
+  // Seed the reverse walk with the target.
+  VERTEX cur = TgtSet.get(0);
+
+  WHILE cur.id != src_id DO
+    @@rev_path += cur;
+    cur = cur.@parent.get(cur);
+  END;
+
+  // Append source.
+  SrcSet2 = SELECT s FROM { Person.* }:s WHERE s.id == src_id;
+  @@rev_path += SrcSet2.get(0);
+
+  // Reverse into correct order.
+  INT rev_size = @@rev_path.size();
+  INT i = rev_size - 1;
+
+  WHILE i >= 0 DO
+    @@path += @@rev_path.get(i);
+    i = i - 1;
+  END;
+
+  PRINT @@path AS path, @@hop_count AS hop_count;
+}
+
+INSTALL QUERY shortestPath
