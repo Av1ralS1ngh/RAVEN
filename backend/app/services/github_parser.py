@@ -31,8 +31,8 @@ _GH_BASE = "https://api.github.com"
 _MAX_SRC_FILES = 50
 # Per-file size limit in bytes before skipping.
 _MAX_FILE_BYTES = 50_000
-# Maximum repos to process.
-_MAX_REPOS = 20
+# Hard limit: maximum latest repos to process per analyze request.
+_MAX_REPOS = 7
 # Concurrency limit when fetching dep files per repo.
 _REPO_SEMAPHORE_LIMIT = 5
 
@@ -126,7 +126,7 @@ class GitHubParser:
     # ── Public API ────────────────────────────────────────────────────────────
 
     async def get_user_repos(self, username: str) -> list[RepoInfo]:
-        """Return up to 20 non-fork repos for ``username``, sorted by push date.
+        """Return up to 7 non-fork repos for ``username``, sorted by push date.
 
         Args:
             username: GitHub username or org name.

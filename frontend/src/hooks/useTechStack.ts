@@ -67,7 +67,7 @@ export function useTechStack(): UseTechStackReturn {
         ...s,
         isLoading: false,
         result: response.data,
-        error: null,
+        error: response.error ?? null,
       }))
     } else {
       setState(s => ({

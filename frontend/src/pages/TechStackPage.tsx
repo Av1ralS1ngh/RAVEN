@@ -1,4 +1,18 @@
+import { useEffect, useMemo, useState } from 'react'
 import { useTechStack } from '@/hooks/useTechStack'
+
+function impactMeta(depth: number): { label: string; color: string } {
+  if (depth <= 1) {
+    return { label: 'High Refactor', color: 'text-[#FF4B2B]' }
+  }
+  if (depth === 2) {
+    return { label: 'Medium Refactor', color: 'text-[#FF9D00]' }
+  }
+  if (depth === 3) {
+    return { label: 'Localized Change', color: 'text-[#A855F7]' }
+  }
+  return { label: 'Low / Stable', color: 'text-[#666]' }
+}
 
 export default function TechStackPage() {
   const {
@@ -7,9 +21,39 @@ export default function TechStackPage() {
     isLoading, error,
     result,
     selectedLib, selectLib,
-    blastDetail, isLoadingDetail,
+    isLoadingDetail,
     submit,
   } = useTechStack()
+
+  const [selectedRepo, setSelectedRepo] = useState('')
+
+  const repoOptions = useMemo(
+    () => result?.repo_analysis.map(repo => repo.repo_name) ?? [],
+    [result],
+  )
+
+  useEffect(() => {
+    if (!result) {
+      setSelectedRepo('')
+      return
+    }
+
+    const contender = result.best_contender?.repo_name ?? ''
+    if (contender && repoOptions.includes(contender)) {
+      setSelectedRepo(contender)
+      return
+    }
+    setSelectedRepo(repoOptions[0] ?? '')
+  }, [result, repoOptions])
+
+  const repoImpacts = useMemo(() => {
+    if (!result || !selectedRepo) {
+      return []
+    }
+    return result.file_impacts
+      .filter(item => item.repo === selectedRepo)
+      .sort((a, b) => a.depth - b.depth || a.path.localeCompare(b.path))
+  }, [result, selectedRepo])
 
   return (
     <>
@@ -142,26 +186,50 @@ export default function TechStackPage() {
         {/* Right: Impact Ranked Files */}
         <div className="p-8 md:p-12">
           <h3 className="font-headline font-bold text-lg text-white mb-8 tracking-tighter">IMPACT_RANKED_FILES</h3>
-          
+          <div className="mb-4 space-y-3">
+            {result && (
+              <>
+                <div className="flex items-center justify-between gap-4">
+                  <label className="font-label text-[10px] text-[#666] uppercase tracking-[0.2em]">Repository</label>
+                  <span className="font-label text-[10px] text-[#A855F7] uppercase tracking-[0.18em]">
+                    Best: {result.best_contender?.repo_name ?? 'N/A'}
+                  </span>
+                </div>
+                <select
+                  value={selectedRepo}
+                  onChange={e => setSelectedRepo(e.target.value)}
+                  className="w-full bg-[#000000] border border-[#222222] px-3 py-2 text-white font-label text-xs focus:outline-none focus:border-[#A855F7]"
+                >
+                  {repoOptions.map(repo => (
+                    <option key={repo} value={repo}>{repo}</option>
+                  ))}
+                </select>
+              </>
+            )}
+          </div>
+
           <div className="space-y-1">
             {!result && (
-              <div className="font-label text-sm text-[#444] py-2">Select a dependency to map file vulnerability...</div>
+              <div className="font-label text-sm text-[#444] py-2">Run analysis to rank file-level impacts by repository.</div>
             )}
             {isLoadingDetail && (
-               <div className="font-label text-sm text-[#A855F7] animate-pulse py-2">Calculating file weights...</div>
+              <div className="font-label text-sm text-[#A855F7] animate-pulse py-2">Calculating file weights...</div>
             )}
-            {blastDetail && blastDetail.length === 0 && !isLoadingDetail && (
-              <div className="font-label text-sm text-[#666] py-2">No file footprints detected.</div>
+            {result && selectedRepo && repoImpacts.length === 0 && (
+              <div className="font-label text-sm text-[#666] py-2">No files were indexed for this repository.</div>
             )}
-            {blastDetail && blastDetail.map((impact, i) => (
-              <div key={i} className="group flex items-center gap-4 py-2 hover:bg-[#0e0e0e] transition-colors px-2 cursor-default">
-                <span className={`w-1.5 h-1.5 ${impact.depth < 2 ? 'bg-[#FF4B2B]' : impact.depth < 4 ? 'bg-[#FF9D00]' : 'bg-[#A855F7]'}`}></span>
-                <span className="font-label text-xs text-[#888] flex-1 truncate group-hover:text-white transition-colors">{impact.path}</span>
-                <span className="font-label text-[10px] text-[#444] uppercase tracking-widest whitespace-nowrap">
-                  {impact.depth === 1 ? 'High Volatility' : `Depth ${impact.depth}`}
-                </span>
-              </div>
-            ))}
+            {repoImpacts.map((impact, i) => {
+              const meta = impactMeta(impact.depth)
+              return (
+                <div key={`${impact.repo}:${impact.path}:${i}`} className="group flex items-center gap-4 py-2 hover:bg-[#0e0e0e] transition-colors px-2 cursor-default">
+                  <span className={`w-1.5 h-1.5 ${impact.depth <= 1 ? 'bg-[#FF4B2B]' : impact.depth === 2 ? 'bg-[#FF9D00]' : impact.depth === 3 ? 'bg-[#A855F7]' : 'bg-[#555]'}`}></span>
+                  <span className="font-label text-xs text-[#888] flex-1 truncate group-hover:text-white transition-colors">{impact.path}</span>
+                  <span className={`font-label text-[10px] uppercase tracking-widest whitespace-nowrap ${meta.color}`}>
+                    {meta.label}
+                  </span>
+                </div>
+              )
+            })}
           </div>
 
           {result && (
@@ -171,8 +239,8 @@ export default function TechStackPage() {
                 <div className="font-label text-xl text-white">{result.query_time_ms.toFixed(0)} ms</div>
               </div>
               <div className="border-l-2 border-[#222] pl-4">
-                <div className="font-label text-[10px] uppercase tracking-widest text-[#666]">Total LoC Scanned</div>
-                <div className="font-label text-xl text-white">{result.repos_analyzed * 1284}</div>
+                <div className="font-label text-[10px] uppercase tracking-widest text-[#666]">Files Listed</div>
+                <div className="font-label text-xl text-white">{repoImpacts.length}</div>
               </div>
             </div>
           )}
