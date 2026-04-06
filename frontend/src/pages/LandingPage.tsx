@@ -89,7 +89,7 @@ export default function LandingPage({ onLaunch, isLaunching }: LandingPageProps)
             className="group relative flex items-center gap-4 px-12 py-5 bg-white text-black font-headline font-bold uppercase tracking-widest text-lg rounded-full hover:bg-[#eef3f8] transition-all transform hover:scale-105 active:scale-95 shadow-[0_20px_50px_rgba(255,255,255,0.15)]"
           >
             <Rocket className="w-6 h-6 group-hover:animate-bounce" />
-            LET'S STARTED
+            LET&apos;S START
             <div className="absolute -inset-0.5 bg-gradient-to-r from-[#9db3ca] to-white rounded-full blur opacity-30 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
           </button>
         </div>

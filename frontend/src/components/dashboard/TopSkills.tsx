@@ -46,11 +46,11 @@ export default function TopSkills() {
             {idx === 0 ? <TrendingUp className="w-4 h-4 text-[#9db3ca]" /> : <ShieldAlert className="w-4 h-4 text-orange-400" />}
             <h3 className="text-sm font-label font-bold text-[#eef3f8] uppercase tracking-widest">{section.category}</h3>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {section.items.map((skill, i) => (
-              <div 
-                key={i} 
+              <div
+                key={i}
                 className="group p-6 bg-[#0f141b]/95 border border-[#2b3440] rounded-xl hover:border-[#9db3ca] hover:shadow-[0_10px_40px_rgba(0,0,0,0.3)] transition-all cursor-default"
               >
                 <div className="flex justify-between items-start mb-4">

@@ -64,7 +64,7 @@ export default function SkillQuiz() {
   const handleOptionSelect = (value: string) => {
     const newAnswers = { ...answers, [QUESTIONS[currentStep].id]: value }
     setAnswers(newAnswers)
-    
+
     if (currentStep < QUESTIONS.length - 1) {
       setCurrentStep(prev => prev + 1)
     } else {
@@ -74,47 +74,47 @@ export default function SkillQuiz() {
 
   const getRecommendation = () => {
     const { background, solving, intensity, influence, breadth } = answers
-    
+
     // Logic for AI Product Lead
     if (background === 'people' && solving === 'strategy' && influence === 'impact') {
-      return { 
-        title: 'AI Product Lead', 
-        desc: 'You excel at bridging human needs with high-intensity tech. Master Product Strategy, LLM-Ops, and Agile Leadership to drive global-scale products.' 
+      return {
+        title: 'AI Product Lead',
+        desc: 'You excel at bridging human needs with high-intensity tech. Master Product Strategy, LLM-Ops, and Agile Leadership to drive global-scale products.'
       }
     }
 
     // Logic for Creative Developer
     if (background === 'creative' || solving === 'ux') {
       if (breadth === 'specialist') {
-        return { 
-          title: 'Design Systems Architect', 
-          desc: 'You have a deep eye for precision. Specialize in CSS Architecture, Framer Motion, and design tool integrations like Figma APIs.' 
+        return {
+          title: 'Design Systems Architect',
+          desc: 'You have a deep eye for precision. Specialize in CSS Architecture, Framer Motion, and design tool integrations like Figma APIs.'
         }
       }
-      return { 
-        title: 'Creative Frontend Engineer', 
-        desc: 'Combine art with code. Master React, Three.js, and modern UX principles to build stunning interactive experiences.' 
+      return {
+        title: 'Creative Frontend Engineer',
+        desc: 'Combine art with code. Master React, Three.js, and modern UX principles to build stunning interactive experiences.'
       }
     }
 
     // Logic for System Engineer / R&D
     if (background === 'logical' && solving === 'code') {
       if (intensity === 'research' || breadth === 'specialist') {
-        return { 
-          title: 'Graph Database & Backend Researcher', 
-          desc: 'You think deep. Specialize in TigerGraph, Distributed Systems, and Performance Optimization at the core level.' 
+        return {
+          title: 'Graph Database & Backend Researcher',
+          desc: 'You think deep. Specialize in TigerGraph, Distributed Systems, and Performance Optimization at the core level.'
         }
       }
-      return { 
-        title: 'Full-Stack Solutions Architect', 
-        desc: 'You like building end-to-end. Master the complete stack from database schemas to high-performance APIs and scalable frontends.' 
+      return {
+        title: 'Full-Stack Solutions Architect',
+        desc: 'You like building end-to-end. Master the complete stack from database schemas to high-performance APIs and scalable frontends.'
       }
     }
 
     // Default Fallback
-    return { 
-      title: 'Technical Generalist / PM', 
-      desc: 'Your versatile skills make you a high-value team bridge. Focus on broad tech literacy while sharpening your strategic decision-making.' 
+    return {
+      title: 'Technical Generalist / PM',
+      desc: 'Your versatile skills make you a high-value team bridge. Focus on broad tech literacy while sharpening your strategic decision-making.'
     }
   }
 
@@ -128,7 +128,7 @@ export default function SkillQuiz() {
         </div>
         <p className="text-[#9aa6b4] mb-8 leading-relaxed text-lg">{recommendation.desc}</p>
         <div className="mt-auto pt-6 border-t border-[#2b3440]/50">
-          <button 
+          <button
             onClick={() => { setCurrentStep(0); setShowResult(false); setAnswers({}); }}
             className="px-6 py-2 bg-[#1a2431] border border-[#2b3440] text-[#d8e2ec] rounded-lg hover:bg-[#232d3a] transition-all text-sm font-label uppercase tracking-widest"
           >
@@ -175,7 +175,7 @@ export default function SkillQuiz() {
 
       <footer className="mt-8 flex items-center justify-between pt-6 border-t border-[#2b3440]/50">
         {currentStep > 0 ? (
-          <button 
+          <button
             onClick={() => setCurrentStep(prev => prev - 1)}
             className="flex items-center gap-2 text-[#7d8793] hover:text-[#edf2f7] transition-colors text-xs font-label uppercase tracking-widest"
           >
