@@ -91,3 +91,41 @@
   .btn-shine:disabled {
   }
 }
+
+@keyframes raven-lift-up {
+  0% { transform: translate(-50%, -50%) scale(1); top: 50%; left: 50%; }
+  40% { transform: translate(-50%, -50%) scale(1.2); top: 50%; left: 50%; }
+  100% { transform: translate(0, 0) scale(0.33); top: 16px; left: 24px; }
+}
+
+@keyframes raven-flap-jitter {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  25% { transform: scale(1.05) rotate(2deg); }
+  75% { transform: scale(0.95) rotate(-2deg); }
+}
+
+@keyframes slide-out-up {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(-100%); opacity: 0; }
+}
+
+@keyframes fade-in-dashboard {
+  from { opacity: 0; filter: blur(10px); }
+  to { opacity: 1; filter: blur(0); }
+}
+
+.animate-raven-lift {
+  animation: raven-lift-up 1.2s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+.animate-raven-flap {
+  animation: raven-flap-jitter 0.2s ease-in-out infinite;
+}
+
+.animate-slide-out-up {
+  animation: slide-out-up 0.8s cubic-bezier(0.7, 0, 0.3, 1) forwards;
+}
+
+.animate-fade-in-dashboard {
+  animation: fade-in-dashboard 0.6s ease-out forwards;
+}
