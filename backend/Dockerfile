@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright/python:v1.50.0-jammy
+FROM mcr.microsoft.com/playwright/python:v1.50.0-noble
 
 # OLD VERSION (KEEPING FOR REFERENCE):
 # FROM python:3.11-slim
