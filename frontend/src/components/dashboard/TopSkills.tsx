@@ -1,4 +1,4 @@
-import { TrendingUp, Sparkles, Brain, Database, Layers, MessageSquare, Compass, ShieldAlert } from 'lucide-react'
+import { TrendingUp, Sparkles, Database, MessageSquare, Compass, ShieldAlert } from 'lucide-react'
 
 const TOP_SKILLS = [
   {
