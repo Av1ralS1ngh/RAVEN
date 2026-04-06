@@ -8,13 +8,13 @@ const TOP_SKILLS = [
         title: 'AI Agents & LLMs',
         desc: 'Automating tasks with LangChain and OpenAI.',
         tag: 'Trending',
-        icon: <Sparkles className="w-5 h-5 text-purple-400" />
+        icon: <Sparkles className="w-5 h-5 icon-silver" />
       },
       {
         title: 'TigerGraph Analytics',
         desc: 'Connecting data points for deep graph insights.',
         tag: 'Deep Tech',
-        icon: <Database className="w-5 h-5 text-green-400" />
+        icon: <Database className="w-5 h-5 icon-silver" />
       }
     ]
   },
@@ -25,13 +25,13 @@ const TOP_SKILLS = [
         title: 'Strategic Storytelling',
         desc: 'Communicating complex tech ideas to stakeholders.',
         tag: 'Multiplier',
-        icon: <MessageSquare className="w-5 h-5 text-orange-400" />
+        icon: <MessageSquare className="w-5 h-5 icon-silver" />
       },
       {
         title: 'Agile Product Leadership',
         desc: 'Leading cross-functional teams with empathy.',
         tag: 'Leadership',
-        icon: <Compass className="w-5 h-5 text-teal-400" />
+        icon: <Compass className="w-5 h-5 icon-silver" />
       }
     ]
   }
@@ -43,7 +43,7 @@ export default function TopSkills() {
       {TOP_SKILLS.map((section, idx) => (
         <div key={idx} className="space-y-6">
           <div className="flex items-center gap-2 mb-4 border-b border-[#2b3440] pb-2">
-            {idx === 0 ? <TrendingUp className="w-4 h-4 text-[#9db3ca]" /> : <ShieldAlert className="w-4 h-4 text-orange-400" />}
+            {idx === 0 ? <TrendingUp className="w-4 h-4 icon-silver" /> : <ShieldAlert className="w-4 h-4 icon-silver" />}
             <h3 className="text-sm font-label font-bold text-[#eef3f8] uppercase tracking-widest">{section.category}</h3>
           </div>
 
@@ -54,7 +54,7 @@ export default function TopSkills() {
                 className="group p-6 bg-[#0f141b]/95 border border-[#2b3440] rounded-xl hover:border-[#9db3ca] hover:shadow-[0_10px_40px_rgba(0,0,0,0.3)] transition-all cursor-default"
               >
                 <div className="flex justify-between items-start mb-4">
-                  <div className="p-2 bg-[#0a0f15] rounded-lg border border-[#2b3440] group-hover:border-[#9db3ca] transition-colors">
+                  <div className="p-2 bg-[#0a0f15] rounded-lg border border-[#2b3440] group-hover:border-[#9db3ca] transition-colors icon-sheen-shell">
                     {skill.icon}
                   </div>
                   <span className="text-[10px] font-label text-[#9db3ca] bg-[#1a2431] px-2 py-1 rounded-full uppercase tracking-widest">{skill.tag}</span>

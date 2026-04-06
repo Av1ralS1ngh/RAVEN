@@ -51,6 +51,16 @@
 }
 
 @layer components {
+  .icon-silver {
+    color: #f3f6f9;
+  }
+
+  .icon-sheen-shell {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
   .btn-shine {
     position: relative;
     overflow: hidden;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { CheckCircle2, ChevronRight, ChevronLeft, Target, Lightbulb, Sparkles, Heart, Users, BrainCircuit, Zap, BarChart3, Rocket } from 'lucide-react'
+import { CheckCircle2, ChevronRight, ChevronLeft, Target, Lightbulb, Sparkles, Heart, Users, BrainCircuit, Zap, BarChart3, Rocket, Globe } from 'lucide-react'
 
 interface Question {
   id: string
@@ -12,49 +12,47 @@ const QUESTIONS: Question[] = [
     id: 'background',
     text: 'What describes your current background?',
     options: [
-      { value: 'creative', label: 'Artistic / Visual Enthusiast', icon: <Sparkles className="w-5 h-5 text-pink-400" /> },
-      { value: 'logical', label: 'Logical / Analytical Thinker', icon: <Target className="w-5 h-5 text-blue-400" /> },
-      { value: 'people', label: 'People / Strategy Oriented', icon: <Users className="w-5 h-5 text-green-400" /> }
+      { value: 'creative', label: 'Artistic / Visual Enthusiast', icon: <Sparkles className="w-5 h-5 icon-silver" /> },
+      { value: 'logical', label: 'Logical / Analytical Thinker', icon: <Target className="w-5 h-5 icon-silver" /> },
+      { value: 'people', label: 'People / Strategy Oriented', icon: <Users className="w-5 h-5 icon-silver" /> }
     ]
   },
   {
     id: 'intensity',
     text: 'What kind of work environment do you thrive in?',
     options: [
-      { value: 'startup', label: 'High-speed / Rapid Iteration', icon: <Zap className="w-5 h-5 text-yellow-500" /> },
-      { value: 'corporate', label: 'Stable / Process-driven', icon: <BarChart3 className="w-5 h-5 text-blue-500" /> },
-      { value: 'research', label: 'Deep / R&D Focused', icon: <Rocket className="w-5 h-5 text-purple-500" /> }
+      { value: 'startup', label: 'High-speed / Rapid Iteration', icon: <Zap className="w-5 h-5 icon-silver" /> },
+      { value: 'corporate', label: 'Stable / Process-driven', icon: <BarChart3 className="w-5 h-5 icon-silver" /> },
+      { value: 'research', label: 'Deep / R&D Focused', icon: <Rocket className="w-5 h-5 icon-silver" /> }
     ]
   },
   {
     id: 'solving',
     text: 'How do you prefer solving problems?',
     options: [
-      { value: 'code', label: 'Building technical systems', icon: <BrainCircuit className="w-5 h-5 text-purple-400" /> },
-      { value: 'ux', label: 'Improving user experience', icon: <Heart className="w-5 h-5 text-red-300" /> },
-      { value: 'strategy', label: 'Defining product strategy', icon: <Lightbulb className="w-5 h-5 text-yellow-400" /> }
+      { value: 'code', label: 'Building technical systems', icon: <BrainCircuit className="w-5 h-5 icon-silver" /> },
+      { value: 'ux', label: 'Improving user experience', icon: <Heart className="w-5 h-5 icon-silver" /> },
+      { value: 'strategy', label: 'Defining product strategy', icon: <Lightbulb className="w-5 h-5 icon-silver" /> }
     ]
   },
   {
     id: 'influence',
     text: 'What gives you the most satisfaction?',
     options: [
-      { value: 'impact', label: 'Seeing many people use my work', icon: <Users className="w-5 h-5 text-green-300" /> },
-      { value: 'elegance', label: 'Creating clean, complex systems', icon: <Target className="w-5 h-5 text-indigo-400" /> },
-      { value: 'creation', label: 'Bringing new ideas to life', icon: <Sparkles className="w-5 h-5 text-amber-400" /> }
+      { value: 'impact', label: 'Seeing many people use my work', icon: <Users className="w-5 h-5 icon-silver" /> },
+      { value: 'elegance', label: 'Creating clean, complex systems', icon: <Target className="w-5 h-5 icon-silver" /> },
+      { value: 'creation', label: 'Bringing new ideas to life', icon: <Sparkles className="w-5 h-5 icon-silver" /> }
     ]
   },
   {
     id: 'breadth',
     text: 'How do you like to learn?',
     options: [
-      { value: 'generalist', label: 'A bit of everything (Broad)', icon: <Globe className="w-5 h-5 text-teal-400" /> },
-      { value: 'specialist', label: 'One thing very deeply (Deep)', icon: <Target className="w-4 h-4 text-red-500" /> }
+      { value: 'generalist', label: 'A bit of everything (Broad)', icon: <Globe className="w-5 h-5 icon-silver" /> },
+      { value: 'specialist', label: 'One thing very deeply (Deep)', icon: <Target className="w-4 h-4 icon-silver" /> }
     ]
   }
 ]
-
-import { Globe } from 'lucide-react'
 
 export default function SkillQuiz() {
   const [currentStep, setCurrentStep] = useState(0)
@@ -123,7 +121,9 @@ export default function SkillQuiz() {
     return (
       <div className="bg-[#0f141b]/95 border border-[#2b3440] rounded-xl p-8 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-[400px] flex flex-col justify-center">
         <div className="flex items-center gap-3 mb-6">
-          <CheckCircle2 className="text-green-400 w-8 h-8" />
+          <div className="p-2 rounded-lg border border-[#2b3440] bg-[#0d1117] icon-sheen-shell">
+            <CheckCircle2 className="w-8 h-8 icon-silver" />
+          </div>
           <h3 className="text-2xl font-headline font-bold text-[#eef3f8]">{recommendation.title}</h3>
         </div>
         <p className="text-[#9aa6b4] mb-8 leading-relaxed text-lg">{recommendation.desc}</p>
@@ -163,7 +163,7 @@ export default function SkillQuiz() {
             className="group flex items-center justify-between p-5 bg-[#0a0f15] border border-[#2b3440] rounded-xl hover:border-[#9db3ca] hover:bg-[#111822] hover:shadow-[0_4px_20px_rgba(0,0,0,0.2)] transition-all text-left"
           >
             <div className="flex items-center gap-4">
-              <div className="p-2.5 bg-[#0d1117] rounded-lg border border-[#2b3440] group-hover:border-[#9db3ca] group-hover:scale-105 transition-all">
+              <div className="p-2.5 bg-[#0d1117] rounded-lg border border-[#2b3440] group-hover:border-[#9db3ca] group-hover:scale-105 transition-all icon-sheen-shell">
                 {opt.icon}
               </div>
               <span className="text-[#edf2f7] font-medium leading-tight">{opt.label}</span>
