@@ -7,9 +7,10 @@ function TopNav() {
   return (
     <nav className="bg-[#0a0d11]/95 backdrop-blur border-b border-[#2b3440] flex justify-between items-center w-full px-6 h-16 fixed top-0 z-50">
       <div className="flex items-center gap-8 h-full">
-        <span className="text-xl font-bold text-[#edf2f7] flex items-center after:content-['.'] after:text-[#8ea6bf] after:ml-0.5 font-headline tracking-tight">
-          RecruitGraph
-        </span>
+        <div className="flex items-center gap-2.5 text-xl font-bold text-[#edf2f7] font-headline tracking-tight">
+          <img src="/raven.png" alt="RAVEN logo" className="w-8 h-8 rounded-sm object-cover" />
+          <span>RAVEN</span>
+        </div>
         <div className="hidden md:flex gap-6 h-full items-end" role="tablist">
           <NavLink
             to={ROUTES.PATH_FINDER}
