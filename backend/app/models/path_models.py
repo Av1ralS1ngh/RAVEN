@@ -21,12 +21,12 @@ class PathRequest(BaseModel):
         recruiter_url: Full LinkedIn profile URL of the target recruiter.
         your_linkedin_id: The caller's own LinkedIn public identifier
             (e.g. ``"john-doe-123"``), used as the path source vertex.
-        max_hops: BFS depth limit. Clamped to 1–10.
+        max_hops: BFS depth limit. Clamped to 1–12.
     """
 
     recruiter_url: HttpUrl
     your_linkedin_id: str
-    max_hops: int = Field(default=6, ge=1, le=10)
+    max_hops: int = Field(default=12, ge=1, le=12)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -50,6 +50,7 @@ class FileImpactEntry(BaseModel):
     path: str
     repo: str
     depth: int = Field(ge=0)
+    change_score: int = Field(ge=0, le=100)
     language: str
 
 

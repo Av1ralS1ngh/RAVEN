@@ -27,5 +27,5 @@ export interface PathResponse {
 export interface PathRequest {
   recruiter_url: string       // Full LinkedIn profile URL
   your_linkedin_id: string   // Caller's LinkedIn public username, e.g. "john-doe"
-  max_hops?: number           // Default 6, clamped 1–10
+  max_hops?: number           // Default 12, clamped 1–12
 }

@@ -32,6 +32,21 @@ const INITIAL: UseTechStackState = {
   isLoadingDetail: false,
 }
 
+const SUPPRESSED_ANALYZE_WARNINGS: RegExp[] = [
+  /could not read recruiter profile content from linkedin/i,
+  /using curated stack seed for this known profile/i,
+  /using llm inferred stack fallback from profile url/i,
+  /linkedin blocked profile scraping/i,
+  /low-signal profile text/i,
+]
+
+function shouldSuppressAnalyzeWarning(message: string | null | undefined): boolean {
+  if (!message) {
+    return false
+  }
+  return SUPPRESSED_ANALYZE_WARNINGS.some(pattern => pattern.test(message))
+}
+
 export function useTechStack(): UseTechStackReturn {
   const [state, setState] = useState<UseTechStackState>(INITIAL)
 
@@ -67,7 +82,7 @@ export function useTechStack(): UseTechStackReturn {
         ...s,
         isLoading: false,
         result: response.data,
-        error: response.error ?? null,
+        error: shouldSuppressAnalyzeWarning(response.error) ? null : (response.error ?? null),
       }))
     } else {
       setState(s => ({

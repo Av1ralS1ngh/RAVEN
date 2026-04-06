@@ -1,8 +1,8 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { usePathFinder } from '@/hooks/usePathFinder'
 import { Network } from 'lucide-react'
 
-// Simple pseudo-random helper for generating fake latency / chart data based on ID
+// Simple pseudo-random helper for stable bridge node labels.
 const hashStr = (s: string) => s.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a }, 0)
 
 export default function PathFinderPage() {
@@ -18,32 +18,46 @@ export default function PathFinderPage() {
   }, [isLoading, submit])
 
   const bridges = result ? result.path.slice(1, -1) : []
+  const rankedAlternativePaths = useMemo(() => {
+    if (!result) {
+      return []
+    }
+    return [...result.alternative_paths].sort((a, b) => {
+      if (a.length !== b.length) {
+        return a.length - b.length
+      }
+      const aKey = a.map(node => node.id).join('>')
+      const bKey = b.map(node => node.id).join('>')
+      return aKey.localeCompare(bKey)
+    })
+  }, [result])
 
   return (
-    <section className="flex-1 flex flex-col min-w-0" data-purpose="path-finder-interface">
-      {/* Top Header Row for specific inputs, matching TechStack style */}
-      <div className="border-b border-[#222222] p-8">
-        <h2 className="font-headline font-extrabold text-2xl text-white tracking-tighter mb-4">NETWORK_PATH_FINDER</h2>
-        <div className="flex flex-col md:flex-row gap-4 items-end max-w-3xl">
+    <section className="flex-1 flex flex-col min-w-0 p-6 md:p-10 gap-6" data-purpose="path-finder-interface">
+      <div className="border border-[#2b3440] bg-[#0f141b]/95 rounded-xl p-6 md:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+        <h2 className="font-headline font-extrabold text-2xl text-[#eef3f8] tracking-tight mb-2">Network Path Analyzer</h2>
+        <p className="text-[#9aa6b4] text-sm font-body mb-6">Find the shortest recruiter-intro chain and surface high-value bridge nodes.</p>
+
+        <div className="flex flex-col md:flex-row gap-4 items-end max-w-4xl">
           <div className="flex-1 w-full space-y-1">
-            <label className="font-label text-[10px] text-[#666] uppercase tracking-[0.2em] block">Recruiter LinkedIn</label>
+            <label className="font-label text-[10px] text-[#7d8793] uppercase tracking-[0.2em] block">Recruiter LinkedIn</label>
             <input 
               type="text" placeholder="https://www.linkedin.com/in/jane-doe" 
               value={recruiterUrl} onChange={e => setRecruiterUrl(e.target.value)} onKeyDown={handleKey} disabled={isLoading}
-              className="w-full bg-[#000000] border border-[#222222] px-4 py-3 text-white font-label focus:outline-none focus:border-[#A855F7] transition-colors" 
+              className="w-full bg-[#0a0f15] border border-[#2b3440] px-4 py-3 text-[#edf2f7] font-label focus:outline-none focus:border-[#9db3ca] transition-colors rounded-lg"
             />
           </div>
           <div className="flex-1 w-full space-y-1">
-            <label className="font-label text-[10px] text-[#666] uppercase tracking-[0.2em] block">Your ID</label>
+            <label className="font-label text-[10px] text-[#7d8793] uppercase tracking-[0.2em] block">Your LinkedIn ID</label>
             <input 
-              type="text" placeholder="john-doe" 
+              type="text" placeholder="https://www.linkedin.com/in/your-linkedin-id" 
               value={yourLinkedInId} onChange={e => setYourLinkedInId(e.target.value)} onKeyDown={handleKey} disabled={isLoading}
-              className="w-full bg-[#000000] border border-[#222222] px-4 py-3 text-white font-label focus:outline-none focus:border-[#A855F7] transition-colors" 
+              className="w-full bg-[#0a0f15] border border-[#2b3440] px-4 py-3 text-[#edf2f7] font-label focus:outline-none focus:border-[#9db3ca] transition-colors rounded-lg"
             />
           </div>
           <button 
             onClick={() => void submit()} disabled={isLoading}
-            className="bg-[#1f1f1f] text-white px-8 py-3 border border-transparent hover:border-[#A855F7] font-label font-bold uppercase tracking-widest text-sm hover:bg-[#353535] transition-all disabled:opacity-50 shrink-0"
+            className="btn-shine bg-[linear-gradient(120deg,#c9d5e1,#90a5bc)] text-[#0b1118] px-8 py-3 border border-[#b9c8d8] rounded-lg font-label font-bold uppercase tracking-widest text-sm hover:brightness-105 transition-all disabled:opacity-50 shrink-0"
           >
             {isLoading ? 'Scanning...' : 'Find Path'}
           </button>
@@ -51,137 +65,138 @@ export default function PathFinderPage() {
         {error && <p className="text-sm font-label text-red-500 mt-3">{String(error)}</p>}
       </div>
 
-      <div className="flex-1 flex flex-col p-8 bg-[#000]">
-        {/* Visualization Centerpiece */}
-        <div className="w-full flex flex-col min-h-[400px] mb-8 bg-black border border-[#222222] p-12 relative overflow-hidden group">
-          <div className="absolute top-4 left-4 flex gap-2 items-center">
-            <span className={`w-2 h-2 ${isLoading ? 'bg-[#A855F7] animate-pulse' : result ? 'bg-green-500' : 'bg-gray-600'} rounded-full`}></span>
-            <span className="text-[9px] font-mono text-[#666] uppercase tracking-tighter">
-              {isLoading ? 'TRACING_NETWORK_GRAPH' : result ? 'LIVE_DATA_STREAM' : 'SYSTEM_STANDBY'}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 border border-[#2b3440] bg-[#0f141b]/95 rounded-xl p-4 md:p-6 overflow-hidden shadow-[0_16px_40px_rgba(0,0,0,0.32)]">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-headline text-[#e6edf5] text-lg tracking-tight">Node Bridge Visual</h3>
+            <span className={`font-label text-[10px] uppercase tracking-[0.2em] ${isLoading ? 'text-[#aabed2]' : result ? 'text-[#d4dde7]' : 'text-[#7f8a97]'}`}>
+              {isLoading ? 'Analyzing' : result ? 'Path Detected' : 'Awaiting Input'}
             </span>
           </div>
+          <img
+            src="/nodevisual.png"
+            alt="Source node to bridge node to destination node"
+            className="w-full rounded-lg border border-[#2b3440] object-cover bg-black"
+          />
 
-          <div className="flex-1 flex items-center justify-center relative z-10 w-full">
-            {!result && !isLoading && (
-              <div className="flex flex-col items-center justify-center opacity-40">
-                <Network className="w-16 h-16 text-[#A855F7] mb-4" />
-                <p className="font-label text-sm text-[#666] uppercase tracking-widest">Input targets to begin topological scan</p>
-              </div>
-            )}
-            {isLoading && !result && (
-              <div className="w-full h-full flex items-center justify-center">
-                <div className="flex gap-4">
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <div key={i} className="w-16 h-16 border border-[#A855F7]/30 bg-[#A855F7]/5 animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
-                  ))}
-                </div>
-              </div>
-            )}
-            {result && (
-              <div className="flex items-center gap-2 overflow-x-auto w-full py-8 custom-scrollbar">
-                {result.path.map((node, i) => (
-                  <div key={node.id} className="flex items-center gap-2 shrink-0">
-                    <div className="border border-[#A855F7] bg-[#111] p-4 flex flex-col min-w-[140px]">
-                      <span className="font-label text-xs text-[#A855F7] mb-1">NODE_{i.toString().padStart(2, '0')}</span>
-                      <span className="font-bold text-white text-sm truncate max-w-[120px]" title={node.name}>{node.name}</span>
-                      <span className="text-[10px] text-[#666] truncate max-w-[120px] font-mono mt-1" title={node.headline}>{node.headline}</span>
-                    </div>
-                    {i < result.path.length - 1 && (
-                      <div className="w-8 h-[1px] bg-[#A855F7] relative">
-                         <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-[#A855F7] rounded-full"></div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="mt-4 flex items-center gap-2 text-[#7f8a97] text-xs">
+            <span className={`w-2 h-2 rounded-full ${isLoading ? 'bg-[#b8c6d5] animate-pulse' : result ? 'bg-[#d8e2ec]' : 'bg-[#5f6873]'}`} />
+            {isLoading ? 'Computing shortest intro chain...' : result ? `Best path found in ${result.query_time_ms.toFixed(0)} ms` : 'Run a scan to compute shortest path and bridge nodes.'}
           </div>
-
-          <div className="absolute bottom-4 right-4 text-[9px] font-mono text-[#666] text-right">
-            PROTO: SECURE_V3<br/>
-            ENCRYPT: AES_256_GCM
-          </div>
-          {/* Subtle grid background */}
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none transition-opacity duration-1000 opacity-20 group-hover:opacity-40"></div>
         </div>
 
-        {/* Bottom Data Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 border-t border-l border-[#222222]">
-          
-          {/* Bridge Nodes Card */}
-          <div className="border-b border-r border-[#222222] p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xs font-bold font-mono tracking-widest text-[#666] uppercase">Bridge Nodes</h2>
-              {result && <span className="text-xs text-[#A855F7] font-mono">{bridges.length} detected</span>}
+        <div className="border border-[#2b3440] bg-[#0f141b]/95 rounded-xl p-6 shadow-[0_16px_40px_rgba(0,0,0,0.32)]">
+          <h3 className="font-headline text-[#e6edf5] text-lg tracking-tight mb-5">Path Snapshot</h3>
+          {!result && !isLoading && (
+            <div className="flex flex-col items-center justify-center opacity-60 min-h-[220px]">
+              <Network className="w-14 h-14 text-[#9eb2c7] mb-3" />
+              <p className="font-label text-xs text-[#7d8793] uppercase tracking-widest text-center">No path yet</p>
             </div>
-            
-            <div className="space-y-4">
-              {!result && <p className="text-xs text-[#444] font-mono">No active scan.</p>}
-              {bridges.map((node) => (
-                <div key={node.id} className="flex items-center justify-between group cursor-default">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 border border-[#222] bg-[#111] flex items-center justify-center">
-                      <Network className="w-4 h-4 text-[#666] group-hover:text-[#A855F7] transition-colors" />
-                    </div>
-                    <span className="text-xs font-mono tracking-tight group-hover:text-white text-[#888] transition-colors max-w-[200px] truncate">
-                      {node.name.toUpperCase().replace(/\s+/g, '_')}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono text-[#666]">L_{Math.abs(hashStr(node.id) % 99).toString().padStart(2, '0')}</span>
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#A855F7]"></div>
-                  </div>
+          )}
+          {isLoading && (
+            <div className="space-y-3 min-h-[220px]">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="h-10 rounded-md border border-[#2b3440] bg-[#111923] animate-pulse" />
+              ))}
+            </div>
+          )}
+          {result && (
+            <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+              {result.path.map((node, i) => (
+                <div key={`${node.id}-${i}`} className="border border-[#2b3440] rounded-md p-3 bg-[#0b1118]">
+                  <div className="text-[#9db3ca] text-[10px] uppercase tracking-[0.18em] font-label">Step {i + 1}</div>
+                  <div className="text-[#eef3f8] text-sm font-semibold truncate" title={node.name}>{node.name}</div>
+                  <div className="text-[#7c8794] text-[11px] truncate" title={node.headline}>{node.headline}</div>
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="border border-[#2b3440] bg-[#0f141b]/95 rounded-xl p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xs font-bold font-mono tracking-widest text-[#7d8793] uppercase">Bridge Nodes</h2>
+            {result && <span className="text-xs text-[#c7d3df] font-mono">{bridges.length} detected</span>}
           </div>
 
-          {/* Alternative Paths Card */}
-          <div className="border-b border-r border-[#222222] p-6">
-            <div className="flex justify-between items-center mb-6">
-               <h2 className="text-xs font-bold font-mono tracking-widest text-[#666] uppercase">Alternative Paths</h2>
-               {result && <span className="text-xs text-[#A855F7] font-mono">{result.alternative_paths.length} mapped</span>}
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left font-mono text-[10px]">
-                <thead>
-                  <tr className="text-[#666] border-b border-[#222222]">
-                    <th className="pb-3 font-normal uppercase tracking-tighter">Route_ID</th>
-                    <th className="pb-3 font-normal uppercase tracking-tighter text-center">Efficiency_Graph</th>
-                    <th className="pb-3 font-normal uppercase tracking-tighter text-right">Latency</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#222222]">
-                  {!result && (
-                    <tr>
-                      <td colSpan={3} className="py-4 text-[#444] text-center">No active scan.</td>
-                    </tr>
-                  )}
-                  {result && result.alternative_paths.map((path, idx) => {
-                     const fakeRouteId = `RT_${String.fromCharCode(65+idx)}${Math.abs(hashStr(path[1].id)%999)}`
-                     const opacity = idx === 0 ? '' : idx % 2 === 0 ? 'opacity-40' : 'opacity-60'
-                     return (
-                       <tr key={idx} className="hover:bg-[#111] transition-colors">
-                         <td className="py-4 text-white">{fakeRouteId}</td>
-                         <td className="py-4 min-w-[100px]">
-                           <svg className={`w-full h-4 text-[#A855F7] ${opacity}`} viewBox="0 0 100 20" preserveAspectRatio="none">
-                             <polyline 
-                               fill="none" 
-                               points={`0,${15-idx} 10,${12+idx} 20,${18-idx} 40,5 60,15 80,${10+idx} 100,6`} 
-                               stroke="currentColor" 
-                               strokeWidth="1.5"
-                             ></polyline>
-                           </svg>
-                         </td>
-                         <td className="py-4 text-right text-[#666]">0.0{20 + Math.abs(hashStr(fakeRouteId)%80)}ms</td>
-                       </tr>
-                     )
-                  })}
-                </tbody>
-              </table>
-            </div>
+          <div className="space-y-3">
+            {!result && <p className="text-xs text-[#647080] font-mono">No active scan.</p>}
+            {bridges.map((node) => (
+              <div key={node.id} className="flex items-center justify-between border border-[#27303b] rounded-md p-3 bg-[#0b1118]">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 border border-[#303b48] bg-[#101923] rounded-md flex items-center justify-center">
+                    <Network className="w-4 h-4 text-[#b4c4d4]" />
+                  </div>
+                  <span className="text-xs font-mono tracking-tight text-[#dbe5ee] max-w-[230px] truncate">
+                    {node.name.toUpperCase().replace(/\s+/g, '_')}
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-[#92a4b8]">L_{Math.abs(hashStr(node.id) % 99).toString().padStart(2, '0')}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="border border-[#2b3440] bg-[#0f141b]/95 rounded-xl p-6">
+          <div className="flex justify-between items-center mb-6">
+             <h2 className="text-xs font-bold font-mono tracking-widest text-[#7d8793] uppercase">Alternative Paths</h2>
+             {result && <span className="text-xs text-[#c7d3df] font-mono">{rankedAlternativePaths.length} mapped</span>}
           </div>
 
+          <div className="space-y-3">
+            {!result && <p className="text-xs text-[#647080] text-center py-4">No active scan.</p>}
+
+            {result && rankedAlternativePaths.length === 0 && (
+              <p className="text-xs text-[#647080] text-center py-4">No alternative path found within max hops.</p>
+            )}
+
+            {result && rankedAlternativePaths.map((path, idx) => {
+              const hops = Math.max(0, path.length - 1)
+              return (
+                <article
+                  key={idx}
+                  className="rounded-xl border border-[#2b3440] bg-[linear-gradient(180deg,#111823,#0d131b)] p-4"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center min-w-7 h-7 px-2 rounded-md bg-[#1a2431] text-[#eaf1f8] text-xs font-semibold">
+                        #{idx + 1}
+                      </span>
+                      <div>
+                        <p className="text-[11px] text-[#e1e9f2] font-semibold tracking-wide uppercase">
+                          {idx === 0 ? 'Best Alternative' : 'Alternative Route'}
+                        </p>
+                        <p className="text-[10px] text-[#7f8b98]">Route quality ranked by shortest length</p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <p className="text-[11px] text-[#d7e2ec] font-semibold">{path.length} nodes</p>
+                      <p className="text-[10px] text-[#8e9cad]">{hops} hops</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {path.map((node, nodeIdx) => (
+                      <div key={`${node.id}-${nodeIdx}`} className="flex items-center gap-2">
+                        <span
+                          className="px-2.5 py-1.5 rounded-md border border-[#344150] bg-[#121b26] text-[#dbe6f0] text-[11px]"
+                          title={node.name}
+                        >
+                          {node.name}
+                        </span>
+                        {nodeIdx < path.length - 1 && (
+                          <span className="text-[#708196] text-xs" aria-hidden="true">→</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
         </div>
       </div>
     </section>

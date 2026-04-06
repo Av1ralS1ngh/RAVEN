@@ -8,12 +8,19 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+from collections import deque
 import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.deps import SettingsDep, get_tg_client
+from app.data.famous_person_graph import (
+    FAMOUS_INDEX,
+    FAMOUS_INDEX_BY_URL,
+    FAMOUS_PEOPLE,
+    build_famous_adjacency,
+)
 from app.models.path_models import (
     PathRequest,
     PathResponse,
@@ -74,25 +81,82 @@ async def find_path(
     if is_demo:
         logger.info("[Path] DEMO_MODE active — bypassing LinkedIn auth and scraping.")
         # Re-use our realistic mock data for the node lookup
-        from app.data.mock_graph import ALL_PERSONS, PERSON_INDEX
+        from app.data.mock_graph import ADJACENCY, ALL_PERSONS, PERSON_INDEX
+
+        all_persons = [*ALL_PERSONS, *FAMOUS_PEOPLE]
+        person_index = {p.id: p for p in all_persons}
+
+        # Merge baseline mock adjacency and famous extension adjacency.
+        demo_adjacency: dict[str, set[str]] = {
+            pid: set(neighbors) for pid, neighbors in ADJACENCY.items()
+        }
+        famous_adj = build_famous_adjacency(ALL_PERSONS)
+        for pid, neighbors in famous_adj.items():
+            demo_adjacency.setdefault(pid, set()).update(neighbors)
+            for nbr in neighbors:
+                demo_adjacency.setdefault(nbr, set()).add(pid)
         
         # 1. Resolve Recruiter
         norm_url = str(request_body.recruiter_url).rstrip("/").lower()
-        recruiter_node = next((p for p in ALL_PERSONS if p.linkedin_url.rstrip("/").lower() == norm_url), None)
+        recruiter_node = next((p for p in all_persons if p.linkedin_url.rstrip("/").lower() == norm_url), None)
+        if recruiter_node is None:
+            recruiter_node = FAMOUS_INDEX_BY_URL.get(norm_url)
         if not recruiter_node:
             slug = norm_url.rsplit("/in/", 1)[-1].split("?")[0]
             recruiter_node = PERSON_INDEX.get(slug)
+            if recruiter_node is None:
+                recruiter_node = FAMOUS_INDEX.get(slug)
         if not recruiter_node:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Recruiter not found in Demo graph. Please try a known founder or use realistic linkedin slug."
             )
-            
-        all_persons = ALL_PERSONS
-        edges = []
-        
-        # TigerGraph is already seeded with this demo data by the seed script.
-        # We skip upserting and go straight to query.
+
+        # In demo mode, keep founders discoverable even when clients send a
+        # conservative hop limit.
+        effective_max_hops = max(request_body.max_hops, 12)
+
+        primary_ids = _bfs_shortest_path_ids(
+            adjacency=demo_adjacency,
+            src_id=request_body.your_linkedin_id,
+            tgt_id=recruiter_node.id,
+            max_hops=effective_max_hops,
+        )
+        if not primary_ids and effective_max_hops < 20:
+            effective_max_hops = 20
+            primary_ids = _bfs_shortest_path_ids(
+                adjacency=demo_adjacency,
+                src_id=request_body.your_linkedin_id,
+                tgt_id=recruiter_node.id,
+                max_hops=effective_max_hops,
+            )
+        if not primary_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No path found within max_hops in Demo graph.",
+            )
+
+        alternative_ids = _alternative_paths_ids(
+            adjacency=demo_adjacency,
+            src_id=request_body.your_linkedin_id,
+            tgt_id=recruiter_node.id,
+            primary_path=primary_ids,
+            max_hops=effective_max_hops,
+            max_alts=3,
+        )
+
+        query_time_ms = (time.monotonic() - t_start) * 1000
+        primary_path = _map_ids_to_summaries(primary_ids, person_index)
+        alt_paths = [_map_ids_to_summaries(path_ids, person_index) for path_ids in alternative_ids]
+
+        result = PathResult(
+            path=primary_path,
+            hop_count=max(0, len(primary_ids) - 1),
+            alternative_paths=alt_paths,
+            total_connections_mapped=len(all_persons),
+            query_time_ms=round(query_time_ms, 2),
+        )
+        return PathResponse(success=True, data=result)
     else:
         # ── 1. Scraper setup + recruiter profile ─────────────────────────────────
         try:
@@ -258,3 +322,117 @@ def _merge_persons(
     for p in extras:
         index[p.id] = p
     return list(index.values())
+
+
+def _map_ids_to_summaries(
+    ids: list[str],
+    index: dict[str, Any],
+) -> list[PersonSummary]:
+    """Map a path list of person IDs to API PersonSummary objects."""
+    out: list[PersonSummary] = []
+    for pid in ids:
+        node = index.get(pid)
+        if node is None:
+            out.append(
+                PersonSummary(
+                    id=pid,
+                    name=pid,
+                    headline="",
+                    company="",
+                    linkedin_url=f"https://linkedin.com/in/{pid}",
+                    mutual_count=0,
+                )
+            )
+            continue
+
+        out.append(
+            PersonSummary(
+                id=pid,
+                name=getattr(node, "name", pid),
+                headline=getattr(node, "headline", ""),
+                company=getattr(node, "company", ""),
+                linkedin_url=getattr(node, "linkedin_url", f"https://linkedin.com/in/{pid}"),
+                mutual_count=int(getattr(node, "mutual_count", 0) or 0),
+            )
+        )
+    return out
+
+
+def _bfs_shortest_path_ids(
+    adjacency: dict[str, set[str]],
+    src_id: str,
+    tgt_id: str,
+    max_hops: int,
+    blocked_edge: tuple[str, str] | None = None,
+) -> list[str]:
+    """Shortest path via BFS, with optional blocked undirected edge."""
+    if src_id == tgt_id:
+        return [src_id]
+    if src_id not in adjacency or tgt_id not in adjacency:
+        return []
+
+    blocked: frozenset[str] | None = None
+    if blocked_edge is not None:
+        blocked = frozenset({blocked_edge[0], blocked_edge[1]})
+
+    q: deque[tuple[str, list[str]]] = deque([(src_id, [src_id])])
+    seen = {src_id}
+
+    while q:
+        current, path = q.popleft()
+        hops = len(path) - 1
+        if hops >= max_hops:
+            continue
+
+        for nbr in adjacency.get(current, set()):
+            if blocked is not None and frozenset({current, nbr}) == blocked:
+                continue
+            if nbr in path:
+                continue
+            next_path = [*path, nbr]
+            if nbr == tgt_id:
+                return next_path
+            if nbr in seen:
+                continue
+            seen.add(nbr)
+            q.append((nbr, next_path))
+
+    return []
+
+
+def _alternative_paths_ids(
+    adjacency: dict[str, set[str]],
+    src_id: str,
+    tgt_id: str,
+    primary_path: list[str],
+    max_hops: int,
+    max_alts: int,
+) -> list[list[str]]:
+    """Generate and rank alternative paths by node count (shorter first)."""
+    if len(primary_path) < 2:
+        return []
+
+    alternatives: list[list[str]] = []
+    seen_paths = {tuple(primary_path)}
+
+    for i in range(len(primary_path) - 1):
+        blocked_edge = (primary_path[i], primary_path[i + 1])
+        alt = _bfs_shortest_path_ids(
+            adjacency=adjacency,
+            src_id=src_id,
+            tgt_id=tgt_id,
+            max_hops=max_hops,
+            blocked_edge=blocked_edge,
+        )
+        if not alt:
+            continue
+        t = tuple(alt)
+        if t in seen_paths:
+            continue
+        seen_paths.add(t)
+        alternatives.append(alt)
+
+    # Rank by path length (node count), then lexicographically for stability.
+    ranked = sorted(alternatives, key=lambda path: (len(path), path))
+
+    return ranked[:max_alts]

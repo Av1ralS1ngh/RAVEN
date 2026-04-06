@@ -58,6 +58,20 @@ router = APIRouter()
 
 # Concurrency limit per request for repo dep-file fetching.
 _REPO_SEM_LIMIT = 5
+_MIN_TECH_STACK_ITEMS = 8
+_MAX_TECH_STACK_ITEMS = 8
+_MIN_TECH_STACK_FILL = [
+    "Python",
+    "TypeScript",
+    "Docker",
+    "Kubernetes",
+    "AWS",
+    "PostgreSQL",
+    "GitHub Actions",
+    "OpenAPI",
+    "Redis",
+    "GraphQL",
+]
 
 
 @dataclass(slots=True)
@@ -190,6 +204,7 @@ async def analyze(
             files=all_files,
             edges=all_edges,
             dep_blast=dep_blast,
+            recruiter_stack=recruiter_stack,
         ),
         repos_analyzed=repos_count,
         query_time_ms=query_time_ms,
@@ -242,6 +257,7 @@ async def blast_detail(
             path=entry.get("file_path", ""),
             repo=entry.get("repo", ""),
             depth=int(entry.get("depth", 0)),
+            change_score=_score_from_depth(int(entry.get("depth", 0))),
             language="",  # Not returned by GSQL; can be enriched from FileNode attrs
         )
         for entry in raw.get("blast_radius", [])
@@ -317,7 +333,7 @@ async def _scrape_and_extract(
                     const preferred = chunks.join("\n\n").trim();
                     const fallback = (document.body && document.body.innerText) ? document.body.innerText : "";
                     const merged = preferred || fallback;
-                    return merged.replace(/\s+/g, " ").trim();
+                    return merged.replace(/\\s+/g, " ").trim();
                 }
                 """
             )
@@ -362,6 +378,7 @@ async def _scrape_and_extract(
         )
         for item in raw_items
     ]
+    items = _ensure_minimum_tech_items(profile_url, items)
 
     if not items:
         fallback_warning = warning or (
@@ -495,6 +512,7 @@ async def _fallback_recruiter_stack(
             )
             for name in seeded
         ]
+        items = _ensure_minimum_tech_items(profile_url, items)
         return (
             items,
             warning + " Using curated stack seed for this known profile.",
@@ -512,13 +530,47 @@ async def _fallback_recruiter_stack(
             )
             for item in inferred
         ]
+        items = _ensure_minimum_tech_items(profile_url, items)
         return (
             items,
             warning + " Using LLM inferred stack fallback from profile URL.",
             "llm_inferred",
         )
 
-    return [], warning, "unavailable"
+    # Final safety net: always provide a minimally useful stack for UI.
+    return _ensure_minimum_tech_items(profile_url, []), warning, "unavailable"
+
+
+def _ensure_minimum_tech_items(profile_url: str, items: list[TechItem]) -> list[TechItem]:
+    """Ensure recruiter stack always has at least _MIN_TECH_STACK_ITEMS entries."""
+    best_by_name: dict[str, TechItem] = {}
+    for item in items:
+        key = item.name.strip().lower()
+        if not key:
+            continue
+        prev = best_by_name.get(key)
+        if prev is None or item.confidence > prev.confidence:
+            best_by_name[key] = item
+
+    fill_candidates = [
+        *strict_dedupe_stack(get_seeded_stack_for_linkedin_url(profile_url)),
+        *strict_dedupe_stack(_MIN_TECH_STACK_FILL),
+    ]
+
+    for name in fill_candidates:
+        if len(best_by_name) >= _MIN_TECH_STACK_ITEMS:
+            break
+        key = name.lower()
+        if key in best_by_name:
+            continue
+        best_by_name[key] = TechItem(
+            name=name,
+            confidence=0.61,
+            category=_normalise_category(category_of(name)),
+        )
+
+    ranked = sorted(best_by_name.values(), key=lambda item: item.confidence, reverse=True)
+    return ranked[:_MAX_TECH_STACK_ITEMS]
 
 
 def _upsert_recruiter_stack_profile(
@@ -647,16 +699,24 @@ def _build_repo_file_impacts(
     files: list,
     edges: list,
     dep_blast: list[DepBlastEntry],
+    recruiter_stack: list[str],
 ) -> list[FileImpactEntry]:
-    """Build per-file impact levels for all scanned repos.
+    """Build per-file impact entries for all scanned repos.
 
-    Impact depth levels:
-      1 -> high blast risk
-      2 -> medium blast risk
-      3 -> localized blast risk
-      4 -> low/stable blast risk
+    ``change_score`` is a 0-100 effort estimate derived from:
+      - dependency blast risk (TigerGraph reach)
+      - dependency concentration in the file
+      - alignment with recruiter stack signals
+
+    ``depth`` remains for grouped UI display and is derived from score.
     """
     blast_count_by_lib = {entry.lib_name.lower(): entry.affected_count for entry in dep_blast}
+    recruiter_terms = {name.lower() for name in strict_dedupe_stack(recruiter_stack)}
+    recruiter_categories = {
+        cat
+        for cat in (category_of(name) for name in recruiter_stack)
+        if cat in {"language", "framework", "database", "platform", "tool"}
+    }
 
     libs_by_path: dict[str, set[str]] = {}
     for edge in edges:
@@ -681,33 +741,121 @@ def _build_repo_file_impacts(
             continue
 
         imported_libs = libs_by_path.get(path, set())
-        blast_counts = [blast_count_by_lib.get(lib.lower(), 0) for lib in imported_libs]
-        depth = _impact_depth(blast_counts, imported_lib_count=len(imported_libs))
+        score = _compute_file_change_score(
+            imported_libs=imported_libs,
+            blast_count_by_lib=blast_count_by_lib,
+            recruiter_terms=recruiter_terms,
+            recruiter_categories=recruiter_categories,
+        )
+        depth = _depth_from_score(score)
 
         key = (repo, path)
         prev = dedup.get(key)
-        candidate = FileImpactEntry(path=path, repo=repo, depth=depth, language=language)
-        if prev is None or candidate.depth < prev.depth:
+        candidate = FileImpactEntry(
+            path=path,
+            repo=repo,
+            depth=depth,
+            change_score=score,
+            language=language,
+        )
+        if (
+            prev is None
+            or candidate.depth < prev.depth
+            or (candidate.depth == prev.depth and candidate.change_score > prev.change_score)
+        ):
             dedup[key] = candidate
 
     return sorted(
         dedup.values(),
-        key=lambda item: (item.repo.lower(), item.depth, item.path.lower()),
+        key=lambda item: (item.repo.lower(), item.depth, -item.change_score, item.path.lower()),
     )
 
 
-def _impact_depth(blast_counts: list[int], imported_lib_count: int) -> int:
-    """Translate dependency blast signals into a stable depth bucket."""
-    if imported_lib_count <= 0:
-        return 4
+def _compute_file_change_score(
+    imported_libs: set[str],
+    blast_count_by_lib: dict[str, int],
+    recruiter_terms: set[str],
+    recruiter_categories: set[str],
+) -> int:
+    """Compute a per-file migration effort score in [0, 100].
 
+    The score intentionally stretches the middle range so repos don't appear
+    artificially "all low" when multiple files have moderate impact.
+    """
+    imported_lib_count = len(imported_libs)
+    if imported_lib_count <= 0:
+        return 14
+
+    blast_counts = [blast_count_by_lib.get(lib.lower(), 0) for lib in imported_libs]
     max_blast = max(blast_counts) if blast_counts else 0
-    total_blast = sum(blast_counts)
-    if max_blast >= 20 or total_blast >= 60:
+    avg_blast = (sum(blast_counts) / max(1, imported_lib_count)) if blast_counts else 0.0
+    blast_risk = min(1.0, ((0.55 * max_blast) + (0.45 * avg_blast)) / 25.0)
+
+    dependency_concentration = min(1.0, imported_lib_count / 10.0)
+
+    exact_matches = 0
+    category_matches = 0
+    for lib in imported_libs:
+        lib_key = lib.lower()
+        if lib_key in recruiter_terms:
+            exact_matches += 1
+        if category_of(lib) in recruiter_categories:
+            category_matches += 1
+
+    if recruiter_terms:
+        exact_ratio = exact_matches / imported_lib_count
+        category_ratio = category_matches / imported_lib_count
+        alignment_ratio = min(1.0, (0.65 * category_ratio) + (0.35 * exact_ratio))
+        mismatch_pressure = 1.0 - alignment_ratio
+    else:
+        mismatch_pressure = 0.0
+
+    # Weighted risk blend in [0, 1].
+    raw_score = (0.5 * blast_risk) + (0.35 * mismatch_pressure) + (0.15 * dependency_concentration)
+
+    # Non-linear stretch gives more separation in the mid-range.
+    stretched = raw_score**0.78
+    score = int(round(14 + (stretched * 84)))
+
+    # Boost clear high-impact signals.
+    if max_blast >= 20:
+        score += 10
+    elif max_blast >= 10:
+        score += 6
+
+    if imported_lib_count >= 8:
+        score += 6
+    elif imported_lib_count >= 5:
+        score += 3
+
+    if mismatch_pressure >= 0.65:
+        score += 8
+    elif mismatch_pressure >= 0.45:
+        score += 4
+
+    return max(14, min(98, score))
+
+
+def _depth_from_score(score: int) -> int:
+    """Map 0-100 score to stable impact depth buckets for grouping UI."""
+    if score >= 78:
         return 1
-    if max_blast >= 8 or total_blast >= 20:
+    if score >= 56:
         return 2
-    return 3
+    if score >= 32:
+        return 3
+    return 4
+
+
+def _score_from_depth(depth: int) -> int:
+    """Fallback score for endpoints that only have traversal depth."""
+    if depth <= 1:
+        return 88
+    if depth == 2:
+        return 66
+    if depth == 3:
+        return 44
+    return 22
 
 
 def _compute_overlap_score(overlap_count: int, recruiter_count: int, repo_count: int) -> float:

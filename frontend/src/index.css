@@ -31,20 +31,63 @@
 
   body {
     font-family: 'Inter', system-ui, sans-serif;
-    background-color: #000000;
-    color: #e2e2e2;
+    background-color: #090c11;
+    color: #e6edf5;
     min-height: 100vh;
+    background-image: radial-gradient(circle at 10% -10%, rgba(196, 210, 224, 0.15), transparent 35%), radial-gradient(circle at 90% 10%, rgba(137, 154, 172, 0.12), transparent 42%);
   }
 
-  /* Simple custom scrollbar for the dark theme */
+  /* Minimal silver scrollbar */
   ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: #000000; }
-  ::-webkit-scrollbar-thumb { background: #222222; }
-  ::-webkit-scrollbar-thumb:hover { background: #333333; }
+  ::-webkit-scrollbar-track { background: #0c1117; }
+  ::-webkit-scrollbar-thumb { background: #3a4553; }
+  ::-webkit-scrollbar-thumb:hover { background: #4a5a6d; }
 
   /* Space Grotesk for all numeric/data elements */
   [data-mono],
   .font-mono {
     font-family: 'Space Grotesk', monospace;
+  }
+}
+
+@layer components {
+  .btn-shine {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .btn-shine::before {
+    content: '';
+    position: absolute;
+    top: -120%;
+    left: -140%;
+    width: 44%;
+    height: 320%;
+    transform: rotate(24deg);
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.45) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    pointer-events: none;
+    transition: left 420ms ease;
+    z-index: 0;
+  }
+
+  .btn-shine > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .btn-shine:hover:not(:disabled) {
+  }
+
+  .btn-shine:hover:not(:disabled)::before {
+    left: 132%;
+  }
+
+  .btn-shine:disabled {
   }
 }

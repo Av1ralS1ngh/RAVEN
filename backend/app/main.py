@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import blast, path
 from app.config import get_settings
+from app.services.person_seed import seed_famous_nodes
 from app.services.tigergraph_client import TigerGraphClient, TigerGraphError
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         client.install_queries()
     except TigerGraphError as exc:
         logger.warning("Query installation skipped: %s", exc)
+
+    try:
+        person_count, edge_count = seed_famous_nodes(client)
+        logger.info(
+            "PersonGraph startup seed complete: %d nodes, %d edges.",
+            person_count,
+            edge_count,
+        )
+    except TigerGraphError as exc:
+        logger.warning("PersonGraph startup seed skipped: %s", exc)
+    except Exception as exc:
+        logger.warning("PersonGraph startup seed failed: %s", exc)
 
     app.state.tg_client = client
     logger.info("TigerGraph client ready.")

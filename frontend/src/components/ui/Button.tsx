@@ -66,7 +66,7 @@ export default function Button({
       {...rest}
       disabled={disabled || loading}
       className={clsx(
-        'inline-flex items-center gap-2 rounded-none transition-all duration-100 cursor-pointer select-none',
+        'btn-shine inline-flex items-center gap-2 rounded-none transition-all duration-100 cursor-pointer select-none',
         variantClasses[variant],
         sizeClasses[size],
         (disabled || loading) && 'cursor-not-allowed',

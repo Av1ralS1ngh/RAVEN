@@ -27,6 +27,7 @@ export interface FileImpactEntry {
   path: string
   repo: string
   depth: number
+  change_score?: number
   language: string
 }
 
