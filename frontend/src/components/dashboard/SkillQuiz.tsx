@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { CheckCircle2, ChevronRight, ChevronLeft, Target, Lightbulb, Sparkles, Heart, Users, BrainCircuit, Zap, BarChart3, Rocket, Globe } from 'lucide-react'
+import type { SkillQuizAnswers } from '@/types/discovery.types'
 
 interface Question {
   id: string
@@ -54,10 +55,21 @@ const QUESTIONS: Question[] = [
   }
 ]
 
-export default function SkillQuiz() {
+interface SkillRecommendation {
+  title: string
+  desc: string
+}
+
+interface SkillQuizProps {
+  onComplete?: (answers: SkillQuizAnswers, recommendation: SkillRecommendation) => void | Promise<void>
+  isSubmitting?: boolean
+}
+
+export default function SkillQuiz({ onComplete, isSubmitting = false }: SkillQuizProps) {
   const [currentStep, setCurrentStep] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [showResult, setShowResult] = useState(false)
+  const [recommendation, setRecommendation] = useState<SkillRecommendation | null>(null)
 
   const handleOptionSelect = (value: string) => {
     const newAnswers = { ...answers, [QUESTIONS[currentStep].id]: value }
@@ -66,12 +78,26 @@ export default function SkillQuiz() {
     if (currentStep < QUESTIONS.length - 1) {
       setCurrentStep(prev => prev + 1)
     } else {
+      const finalRecommendation = getRecommendation(newAnswers)
+      setRecommendation(finalRecommendation)
       setShowResult(true)
+
+      const parsedAnswers: SkillQuizAnswers = {
+        background: String(newAnswers.background ?? 'logical') as SkillQuizAnswers['background'],
+        intensity: String(newAnswers.intensity ?? 'startup') as SkillQuizAnswers['intensity'],
+        solving: String(newAnswers.solving ?? 'code') as SkillQuizAnswers['solving'],
+        influence: String(newAnswers.influence ?? 'impact') as SkillQuizAnswers['influence'],
+        breadth: String(newAnswers.breadth ?? 'generalist') as SkillQuizAnswers['breadth'],
+      }
+
+      if (onComplete) {
+        void onComplete(parsedAnswers, finalRecommendation)
+      }
     }
   }
 
-  const getRecommendation = () => {
-    const { background, solving, intensity, influence, breadth } = answers
+  const getRecommendation = (answerSet: Record<string, string>) => {
+    const { background, solving, intensity, influence, breadth } = answerSet
 
     // Logic for AI Product Lead
     if (background === 'people' && solving === 'strategy' && influence === 'impact') {
@@ -117,19 +143,24 @@ export default function SkillQuiz() {
   }
 
   if (showResult) {
-    const recommendation = getRecommendation()
+    const resolvedRecommendation = recommendation ?? getRecommendation(answers)
     return (
       <div className="bg-[#0f141b]/95 border border-[#2b3440] rounded-xl p-8 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-[400px] flex flex-col justify-center">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 rounded-lg border border-[#2b3440] bg-[#0d1117] icon-sheen-shell">
             <CheckCircle2 className="w-8 h-8 icon-silver" />
           </div>
-          <h3 className="text-2xl font-headline font-bold text-[#eef3f8]">{recommendation.title}</h3>
+          <h3 className="text-2xl font-headline font-bold text-[#eef3f8]">{resolvedRecommendation.title}</h3>
         </div>
-        <p className="text-[#9aa6b4] mb-8 leading-relaxed text-lg">{recommendation.desc}</p>
+        <p className="text-[#9aa6b4] mb-8 leading-relaxed text-lg">{resolvedRecommendation.desc}</p>
+        {isSubmitting && (
+          <p className="text-[#a6b8ca] text-xs uppercase tracking-[0.2em] mb-4 animate-pulse">
+            Building graph recommendation...
+          </p>
+        )}
         <div className="mt-auto pt-6 border-t border-[#2b3440]/50">
           <button
-            onClick={() => { setCurrentStep(0); setShowResult(false); setAnswers({}); }}
+            onClick={() => { setCurrentStep(0); setShowResult(false); setAnswers({}); setRecommendation(null); }}
             className="px-6 py-2 bg-[#1a2431] border border-[#2b3440] text-[#d8e2ec] rounded-lg hover:bg-[#232d3a] transition-all text-sm font-label uppercase tracking-widest"
           >
             Retake Discovery
@@ -160,6 +191,7 @@ export default function SkillQuiz() {
           <button
             key={opt.value}
             onClick={() => handleOptionSelect(opt.value)}
+            disabled={isSubmitting}
             className="group flex items-center justify-between p-5 bg-[#0a0f15] border border-[#2b3440] rounded-xl hover:border-[#9db3ca] hover:bg-[#111822] hover:shadow-[0_4px_20px_rgba(0,0,0,0.2)] transition-all text-left"
           >
             <div className="flex items-center gap-4">
@@ -177,6 +209,7 @@ export default function SkillQuiz() {
         {currentStep > 0 ? (
           <button
             onClick={() => setCurrentStep(prev => prev - 1)}
+            disabled={isSubmitting}
             className="flex items-center gap-2 text-[#7d8793] hover:text-[#edf2f7] transition-colors text-xs font-label uppercase tracking-widest"
           >
             <ChevronLeft className="w-4 h-4" /> Back

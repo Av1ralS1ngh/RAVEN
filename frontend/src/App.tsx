@@ -38,6 +38,16 @@ function TopNav() {
           >
             Tech Stack Analyzer
           </NavLink>
+          <NavLink
+            to={ROUTES.WHAT_TO_CHOOSE}
+            className={({ isActive }) =>
+              `headline-md font-headline tracking-tight pb-4 transition-colors duration-200 ${
+                isActive ? 'text-[#eef3f8] border-b-2 border-[#9db3ca]' : 'text-[#7d8793] hover:text-[#e6ebf1] border-b-2 border-transparent'
+              }`
+            }
+          >
+            Skill Discovery
+          </NavLink>
         </div>
       </div>
       <div className="flex items-center gap-4 text-[#9db3ca]">

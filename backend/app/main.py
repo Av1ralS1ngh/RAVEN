@@ -16,9 +16,10 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import blast, path
+from app.api.routes import blast, discovery, path
 from app.config import get_settings
 from app.services.person_seed import seed_famous_nodes
+from app.services.skill_discovery_seed import seed_skill_discovery_graph
 from app.services.tigergraph_client import TigerGraphClient, TigerGraphError
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as exc:
         logger.warning("PersonGraph startup seed failed: %s", exc)
 
+    try:
+        node_count, edge_count = seed_skill_discovery_graph(client)
+        logger.info(
+            "Discovery startup seed complete: %d nodes, %d edges.",
+            node_count,
+            edge_count,
+        )
+    except TigerGraphError as exc:
+        logger.warning("Discovery startup seed skipped: %s", exc)
+    except Exception as exc:
+        logger.warning("Discovery startup seed failed: %s", exc)
+
     app.state.tg_client = client
     logger.info("TigerGraph client ready.")
 
@@ -90,6 +103,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 _settings = get_settings()
 
+
+def _cors_origins_with_vite_fallback(raw_origins: str) -> list[str]:
+    """Return configured CORS origins plus common Vite fallback origins."""
+    origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+    extras: list[str] = []
+
+    if "http://localhost:5173" in origins and "http://localhost:5174" not in origins:
+        extras.append("http://localhost:5174")
+    if "http://127.0.0.1:5173" in origins and "http://127.0.0.1:5174" not in origins:
+        extras.append("http://127.0.0.1:5174")
+
+    return origins + extras
+
 app = FastAPI(
     title="RecruitGraph API",
     version="0.1.0",
@@ -100,7 +126,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_settings.cors_origins.split(","),
+    allow_origins=_cors_origins_with_vite_fallback(_settings.cors_origins),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -108,6 +134,7 @@ app.add_middleware(
 
 app.include_router(path.router, prefix="/api/path", tags=["path"])
 app.include_router(blast.router, prefix="/api/blast", tags=["blast"])
+app.include_router(discovery.router, prefix="/api/discovery", tags=["discovery"])
 
 
 # ─────────────────────────────────────────────────────────────────────────────

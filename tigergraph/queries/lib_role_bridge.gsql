@@ -1,0 +1,96 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// libRoleBridge — Installed query on DepGraph
+//
+// Starts from one library and bridges to files, skills, roles, traits, domains.
+// Designed for query viewer demos with many interconnected node types.
+// ─────────────────────────────────────────────────────────────────────────────
+
+CREATE QUERY libRoleBridge (
+  STRING lib_name,
+  INT    caller_limit = 80,
+  INT    related_limit = 60
+) FOR GRAPH DepGraph {
+
+  SetAccum<STRING> @@skill_ids;
+  SetAccum<STRING> @@role_ids;
+
+  AllLibs = {LibNode.*};
+  AllFiles = {FileNode.*};
+  AllTraits = {TraitNode.*};
+
+  RootLib = SELECT l
+    FROM AllLibs:l
+    WHERE l.name == lib_name
+    LIMIT 1;
+
+  IF RootLib.size() == 0 THEN
+    PRINT "Library not found" AS error;
+    RETURN;
+  END;
+
+  Importers = SELECT f
+    FROM AllFiles:f - (IMPORTS:e) -> LibNode:l
+    WHERE l.name == lib_name
+    LIMIT caller_limit;
+
+  CalledFiles = SELECT c
+    FROM Importers:f - (CALLS:e) -> FileNode:c
+    LIMIT caller_limit;
+
+  Skills = SELECT s
+    FROM SkillNode:s - (SKILL_USES_LIB:e) -> LibNode:l
+    WHERE l.name == lib_name;
+
+  FileSkills = SELECT s
+    FROM Importers:f - (FILE_SUPPORTS_SKILL:e) -> SkillNode:s
+    LIMIT related_limit;
+
+  SkillIds = SELECT s
+    FROM Skills:s
+    ACCUM @@skill_ids += s.name;
+
+  Roles = SELECT r
+    FROM RoleNode:r - (ROLE_REQUIRES_SKILL:e) -> SkillNode:s
+    WHERE s.name IN @@skill_ids;
+
+  RoleIds = SELECT r
+    FROM Roles:r
+    ACCUM @@role_ids += r.name;
+
+  Traits = SELECT t
+    FROM AllTraits:t - (TRAIT_ALIGNS_ROLE:e) -> RoleNode:r
+    WHERE r.name IN @@role_ids;
+
+  DirectRoles = SELECT r
+    FROM RoleNode:r - (ROLE_USES_LIB:e) -> LibNode:l
+    WHERE l.name == lib_name;
+
+  Domains = SELECT d
+    FROM Skills:s - (SKILL_IN_DOMAIN:e) -> DomainNode:d;
+
+  RoleDomains = SELECT d
+    FROM Roles:r - (ROLE_IN_DOMAIN:e) -> DomainNode:d;
+
+  DirectRoleDomains = SELECT d
+    FROM DirectRoles:r - (ROLE_IN_DOMAIN:e) -> DomainNode:d;
+
+  RelatedSkills = SELECT s2
+    FROM Skills:s1 - (SKILL_RELATES_TO_SKILL:e) -> SkillNode:s2
+    LIMIT related_limit;
+
+  PRINT
+    RootLib AS library,
+    Importers AS importing_files,
+    CalledFiles AS downstream_files,
+    Skills AS direct_skills,
+    FileSkills AS file_connected_skills,
+    RelatedSkills AS related_skills,
+    Roles AS aligned_roles,
+    DirectRoles AS direct_roles,
+    Traits AS aligned_traits,
+    Domains AS skill_domains,
+    RoleDomains AS role_domains,
+    DirectRoleDomains AS direct_role_domains;
+}
+
+INSTALL QUERY libRoleBridge

@@ -1,0 +1,68 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// roleSkillMesh — Installed query on DepGraph
+//
+// Showcases dense role-centered connectivity:
+// Role -> Skills -> Related Skills -> Domains -> Libs + Traits.
+// ─────────────────────────────────────────────────────────────────────────────
+
+CREATE QUERY roleSkillMesh (
+  STRING role_name,
+  INT    related_limit = 40
+) FOR GRAPH DepGraph {
+
+  AllRoles = {RoleNode.*};
+  AllTraits = {TraitNode.*};
+
+  TargetRole = SELECT r
+    FROM AllRoles:r
+    WHERE r.name == role_name
+    LIMIT 1;
+
+  IF TargetRole.size() == 0 THEN
+    PRINT "Role not found" AS error;
+    RETURN;
+  END;
+
+  Traits = SELECT t
+    FROM AllTraits:t - (TRAIT_ALIGNS_ROLE:e) -> RoleNode:r
+    WHERE r.name == role_name;
+
+  RequiredSkills = SELECT s
+    FROM RoleNode:r - (ROLE_REQUIRES_SKILL:e) -> SkillNode:s
+    WHERE r.name == role_name;
+
+  RelatedSkills = SELECT s2
+    FROM RequiredSkills:s1 - (SKILL_RELATES_TO_SKILL:e) -> SkillNode:s2
+    LIMIT related_limit;
+
+  Domains = SELECT d
+    FROM RequiredSkills:s - (SKILL_IN_DOMAIN:e) -> DomainNode:d;
+
+  Libs = SELECT lb
+    FROM RequiredSkills:s - (SKILL_USES_LIB:e) -> LibNode:lb;
+
+  DirectRoleDomains = SELECT d
+    FROM RoleNode:r - (ROLE_IN_DOMAIN:e) -> DomainNode:d
+    WHERE r.name == role_name;
+
+  DirectRoleLibs = SELECT lb
+    FROM RoleNode:r - (ROLE_USES_LIB:e) -> LibNode:lb
+    WHERE r.name == role_name;
+
+  TraitSkills = SELECT s
+    FROM Traits:t - (TRAIT_RELATES_TO_SKILL:e) -> SkillNode:s
+    LIMIT related_limit;
+
+  PRINT
+    TargetRole AS role,
+    Traits AS role_traits,
+    RequiredSkills AS required_skills,
+    RelatedSkills AS related_skills,
+    Domains AS domains,
+    Libs AS libraries,
+    DirectRoleDomains AS role_domains,
+    DirectRoleLibs AS role_libraries,
+    TraitSkills AS trait_skills;
+}
+
+INSTALL QUERY roleSkillMesh

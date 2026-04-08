@@ -6,3 +6,5 @@ httpx==0.28.*
 playwright==1.50.*
 groq==0.18.*
 python-dotenv==1.1.*
+pytest==8.4.*
+linkedin-api==2.3.*

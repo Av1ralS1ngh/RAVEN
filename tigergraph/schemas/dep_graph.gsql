@@ -21,6 +21,38 @@ CREATE VERTEX FileNode (
   language          STRING DEFAULT ""
 ) WITH primary_id_as_attribute="true"
 
+// Skill entity used by discovery graph traversals.
+CREATE VERTEX SkillNode (
+  PRIMARY_ID name   STRING,
+  category          STRING DEFAULT "other",
+  difficulty        INT DEFAULT 1
+) WITH primary_id_as_attribute="true"
+
+// Career role recommendation node.
+CREATE VERTEX RoleNode (
+  PRIMARY_ID name   STRING,
+  level             STRING DEFAULT "mid"
+) WITH primary_id_as_attribute="true"
+
+// High-level skill domain node (e.g. backend, product, design).
+CREATE VERTEX DomainNode (
+  PRIMARY_ID name   STRING
+) WITH primary_id_as_attribute="true"
+
+// Quiz-derived preference or working-style trait.
+CREATE VERTEX TraitNode (
+  PRIMARY_ID name   STRING,
+  trait_group       STRING DEFAULT ""
+) WITH primary_id_as_attribute="true"
+
+// Recommended learning resource associated with skills.
+CREATE VERTEX LearningResourceNode (
+  PRIMARY_ID id     STRING,
+  title             STRING,
+  resource_type     STRING DEFAULT "article",
+  url               STRING DEFAULT ""
+) WITH primary_id_as_attribute="true"
+
 // ── Edges ─────────────────────────────────────────────────────────────────────
 
 // FileNode imports a LibNode (e.g. `import react`).
@@ -40,6 +72,100 @@ CREATE DIRECTED EDGE LIB_DEPENDS_ON (
   is_dev_dep  BOOL DEFAULT "false"
 )
 
+// Role -> required skill relationship used to build recommendation graphs.
+CREATE DIRECTED EDGE ROLE_REQUIRES_SKILL (
+  FROM RoleNode, TO SkillNode,
+  weight      FLOAT DEFAULT 0.5
+)
+
+// Skill affinity edge for neighborhood expansion.
+CREATE DIRECTED EDGE SKILL_RELATES_TO_SKILL (
+  FROM SkillNode, TO SkillNode,
+  affinity    FLOAT DEFAULT 0.5
+)
+
+// Skill -> domain taxonomy mapping.
+CREATE DIRECTED EDGE SKILL_IN_DOMAIN (
+  FROM SkillNode, TO DomainNode
+)
+
+// Trait -> role alignment weight from quiz answers.
+CREATE DIRECTED EDGE TRAIT_ALIGNS_ROLE (
+  FROM TraitNode, TO RoleNode,
+  weight      FLOAT DEFAULT 0.5
+)
+
+// Resource -> skill mapping for learning guidance.
+CREATE DIRECTED EDGE RESOURCE_TEACHES_SKILL (
+  FROM LearningResourceNode, TO SkillNode,
+  strength    FLOAT DEFAULT 0.5
+)
+
+// Skill -> library relationship to bridge discovery with dep graph.
+CREATE DIRECTED EDGE SKILL_USES_LIB (
+  FROM SkillNode, TO LibNode,
+  relevance   FLOAT DEFAULT 0.5
+)
+
+// Role -> domain relationship inferred from role skill composition.
+CREATE DIRECTED EDGE ROLE_IN_DOMAIN (
+  FROM RoleNode, TO DomainNode,
+  fit         FLOAT DEFAULT 0.5
+)
+
+// Role -> library bridge to connect recommendations directly to tooling.
+CREATE DIRECTED EDGE ROLE_USES_LIB (
+  FROM RoleNode, TO LibNode,
+  relevance   FLOAT DEFAULT 0.5
+)
+
+// Trait -> skill relationship for personality-to-skill overlays.
+CREATE DIRECTED EDGE TRAIT_RELATES_TO_SKILL (
+  FROM TraitNode, TO SkillNode,
+  weight      FLOAT DEFAULT 0.5
+)
+
+// Resource -> domain bridge for broader learning pathways.
+CREATE DIRECTED EDGE RESOURCE_IN_DOMAIN (
+  FROM LearningResourceNode, TO DomainNode,
+  strength    FLOAT DEFAULT 0.5
+)
+
+// File -> skill bridge to connect implementation artifacts with capabilities.
+CREATE DIRECTED EDGE FILE_SUPPORTS_SKILL (
+  FROM FileNode, TO SkillNode,
+  relevance   FLOAT DEFAULT 0.5
+)
+
+// Domain affinity links to create richer domain neighborhoods.
+CREATE DIRECTED EDGE DOMAIN_RELATES_TO_DOMAIN (
+  FROM DomainNode, TO DomainNode,
+  affinity    FLOAT DEFAULT 0.5
+)
+
 // ── Graph ─────────────────────────────────────────────────────────────────────
 
-CREATE GRAPH DepGraph (LibNode, FileNode, IMPORTS, CALLS, LIB_DEPENDS_ON)
+CREATE GRAPH DepGraph (
+  LibNode,
+  FileNode,
+  SkillNode,
+  RoleNode,
+  DomainNode,
+  TraitNode,
+  LearningResourceNode,
+  IMPORTS,
+  CALLS,
+  LIB_DEPENDS_ON,
+  ROLE_REQUIRES_SKILL,
+  SKILL_RELATES_TO_SKILL,
+  SKILL_IN_DOMAIN,
+  TRAIT_ALIGNS_ROLE,
+  RESOURCE_TEACHES_SKILL,
+  SKILL_USES_LIB,
+  ROLE_IN_DOMAIN,
+  ROLE_USES_LIB,
+  TRAIT_RELATES_TO_SKILL,
+  RESOURCE_IN_DOMAIN,
+  FILE_SUPPORTS_SKILL,
+  DOMAIN_RELATES_TO_DOMAIN
+)

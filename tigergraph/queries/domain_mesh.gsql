@@ -1,0 +1,96 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// domainMesh — Installed query on DepGraph
+//
+// Domain-centered expansion to showcase cross-role and cross-library coupling.
+// ─────────────────────────────────────────────────────────────────────────────
+
+CREATE QUERY domainMesh (
+  STRING domain_name,
+  INT    related_limit = 80
+) FOR GRAPH DepGraph {
+
+  SetAccum<STRING> @@skill_ids;
+  SetAccum<STRING> @@role_ids;
+
+  AllDomains = {DomainNode.*};
+  AllTraits = {TraitNode.*};
+
+  TargetDomain = SELECT d
+    FROM AllDomains:d
+    WHERE d.name == domain_name
+    LIMIT 1;
+
+  IF TargetDomain.size() == 0 THEN
+    PRINT "Domain not found" AS error;
+    RETURN;
+  END;
+
+  Skills = SELECT s
+    FROM SkillNode:s - (SKILL_IN_DOMAIN:e) -> DomainNode:d
+    WHERE d.name == domain_name;
+
+  SkillIds = SELECT s
+    FROM Skills:s
+    ACCUM @@skill_ids += s.name;
+
+  Roles = SELECT r
+    FROM RoleNode:r - (ROLE_REQUIRES_SKILL:e) -> SkillNode:s
+    WHERE s.name IN @@skill_ids;
+
+  DirectRoles = SELECT r
+    FROM RoleNode:r - (ROLE_IN_DOMAIN:e) -> DomainNode:d
+    WHERE d.name == domain_name;
+
+  RoleIds = SELECT r
+    FROM Roles:r
+    ACCUM @@role_ids += r.name;
+
+  DirectRoleIds = SELECT r
+    FROM DirectRoles:r
+    ACCUM @@role_ids += r.name;
+
+  Traits = SELECT t
+    FROM AllTraits:t - (TRAIT_ALIGNS_ROLE:e) -> RoleNode:r
+    WHERE r.name IN @@role_ids;
+
+  Libs = SELECT lb
+    FROM Skills:s - (SKILL_USES_LIB:e) -> LibNode:lb;
+
+  RelatedSkills = SELECT s2
+    FROM Skills:s1 - (SKILL_RELATES_TO_SKILL:e) -> SkillNode:s2
+    LIMIT related_limit;
+
+  NeighborDomains = SELECT d2
+    FROM RelatedSkills:s - (SKILL_IN_DOMAIN:e) -> DomainNode:d2;
+
+  LinkedDomains = SELECT d2
+    FROM DomainNode:d1 - (DOMAIN_RELATES_TO_DOMAIN:e) -> DomainNode:d2
+    WHERE d1.name == domain_name
+    LIMIT related_limit;
+
+  Resources = SELECT lr
+    FROM LearningResourceNode:lr - (RESOURCE_IN_DOMAIN:e) -> DomainNode:d
+    WHERE d.name == domain_name;
+
+  RoleLibs = SELECT lb
+    FROM Roles:r - (ROLE_USES_LIB:e) -> LibNode:lb;
+
+  DirectRoleLibs = SELECT lb
+    FROM DirectRoles:r - (ROLE_USES_LIB:e) -> LibNode:lb;
+
+  PRINT
+    TargetDomain AS domain,
+    Skills AS skills,
+    Roles AS roles,
+    DirectRoles AS direct_roles,
+    Traits AS traits,
+    Libs AS skill_libraries,
+    RoleLibs AS role_libraries,
+    DirectRoleLibs AS direct_role_libraries,
+    Resources AS resources,
+    RelatedSkills AS related_skills,
+    NeighborDomains AS neighboring_domains,
+    LinkedDomains AS linked_domains;
+}
+
+INSTALL QUERY domainMesh

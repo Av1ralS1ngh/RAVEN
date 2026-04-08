@@ -1,0 +1,54 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// skillDiscovery — Installed query on DepGraph
+//
+// Dialect-compatible implementation that returns vertex and edge sets.
+// Python post-processing converts these sets into graph nodes/edges payloads.
+// ─────────────────────────────────────────────────────────────────────────────
+
+CREATE QUERY skillDiscovery (
+  STRING role_name,
+  INT    related_limit = 8,
+  INT    resource_limit = 4
+) FOR GRAPH DepGraph {
+
+  AllRoles = {RoleNode.*};
+  AllTraits = {TraitNode.*};
+
+  Roles = SELECT r
+    FROM AllRoles:r
+    WHERE r.name == role_name
+    LIMIT 1;
+
+  IF Roles.size() == 0 THEN
+    PRINT "Role not found" AS error;
+    RETURN;
+  END;
+
+  Traits = SELECT t
+    FROM AllTraits:t - (TRAIT_ALIGNS_ROLE:e) -> RoleNode:r
+    WHERE r.name == role_name;
+
+  RequiredSkills = SELECT s
+    FROM RoleNode:r - (ROLE_REQUIRES_SKILL:e) -> SkillNode:s
+    WHERE r.name == role_name;
+
+  RelatedSkills = SELECT s2
+    FROM RequiredSkills:s1 - (SKILL_RELATES_TO_SKILL:e) -> SkillNode:s2
+    LIMIT related_limit;
+
+  Domains = SELECT d
+    FROM RequiredSkills:s - (SKILL_IN_DOMAIN:e) -> DomainNode:d;
+
+  SkillLibs = SELECT lb
+    FROM RequiredSkills:s - (SKILL_USES_LIB:e) -> LibNode:lb;
+
+  PRINT
+    Roles AS roles,
+    Traits AS traits,
+    RequiredSkills AS required_skills,
+    RelatedSkills AS related_skills,
+    Domains AS domains,
+    SkillLibs AS libs;
+}
+
+INSTALL QUERY skillDiscovery

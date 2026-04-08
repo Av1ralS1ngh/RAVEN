@@ -1,4 +1,5 @@
 import { TrendingUp, Sparkles, Database, MessageSquare, Compass, ShieldAlert } from 'lucide-react'
+import type { TrendingSkillItem } from '@/types/discovery.types'
 
 const TOP_SKILLS = [
   {
@@ -37,10 +38,81 @@ const TOP_SKILLS = [
   }
 ]
 
-export default function TopSkills() {
+interface TopSkillsProps {
+  trending?: TrendingSkillItem[]
+  isLoading?: boolean
+}
+
+const TECH_CATEGORIES = new Set(['language', 'framework', 'tool', 'platform', 'database'])
+
+function iconForCategory(category: string) {
+  if (category === 'database') {
+    return <Database className="w-5 h-5 icon-silver" />
+  }
+  if (category === 'other') {
+    return <MessageSquare className="w-5 h-5 icon-silver" />
+  }
+  if (category === 'platform') {
+    return <Compass className="w-5 h-5 icon-silver" />
+  }
+  return <Sparkles className="w-5 h-5 icon-silver" />
+}
+
+function formatTag(skill: TrendingSkillItem): string {
+  if (skill.connected_roles.length >= 3) {
+    return 'Cross-Role'
+  }
+  if (skill.score >= 3) {
+    return 'Momentum'
+  }
+  return 'Emerging'
+}
+
+export default function TopSkills({ trending = [], isLoading = false }: TopSkillsProps) {
+  const hasTrending = trending.length > 0
+  const dynamicSections = [
+    {
+      category: 'Technical Systems',
+      items: trending
+        .filter(skill => TECH_CATEGORIES.has(skill.category))
+        .slice(0, 4)
+        .map(skill => ({
+          title: skill.name,
+          desc: `${skill.connected_roles.length} aligned role${skill.connected_roles.length === 1 ? '' : 's'} in discovery graph.`,
+          tag: formatTag(skill),
+          icon: iconForCategory(skill.category),
+        })),
+    },
+    {
+      category: 'High-Value Human Skills',
+      items: trending
+        .filter(skill => !TECH_CATEGORIES.has(skill.category))
+        .slice(0, 4)
+        .map(skill => ({
+          title: skill.name,
+          desc: `Influences ${skill.connected_roles.length} discovery pathways.`,
+          tag: formatTag(skill),
+          icon: iconForCategory(skill.category),
+        })),
+    },
+  ].map(section => ({
+    ...section,
+    items: section.items.length > 0 ? section.items : [],
+  }))
+
+  const sections = hasTrending && dynamicSections.some(section => section.items.length > 0)
+    ? dynamicSections
+    : TOP_SKILLS
+
   return (
     <div className="space-y-10">
-      {TOP_SKILLS.map((section, idx) => (
+      {isLoading && (
+        <div className="rounded-lg border border-[#2b3440] bg-[#0f141b]/95 p-4 text-xs text-[#9aa6b4] uppercase tracking-[0.16em] animate-pulse">
+          Synchronizing trending skills...
+        </div>
+      )}
+
+      {sections.map((section, idx) => (
         <div key={idx} className="space-y-6">
           <div className="flex items-center gap-2 mb-4 border-b border-[#2b3440] pb-2">
             {idx === 0 ? <TrendingUp className="w-4 h-4 icon-silver" /> : <ShieldAlert className="w-4 h-4 icon-silver" />}

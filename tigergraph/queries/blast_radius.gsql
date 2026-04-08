@@ -29,9 +29,8 @@ CREATE QUERY blastRadius (
   // @@visited: global guard to prevent revisiting any vertex.
   SetAccum<VERTEX> @@visited;
 
-  // Result tuple type for final PRINT.
-  TYPEDEF TUPLE<STRING file_path, STRING repo, INT depth> FileImpact;
-  ListAccum<FileImpact> @@results;
+  // Reached file vertices.
+  SetAccum<VERTEX> @@result_files;
 
   // ── Seed: locate the root LibNode ────────────────────────────────────────
 
@@ -43,24 +42,20 @@ CREATE QUERY blastRadius (
     RETURN;
   END;
 
-  @@visited += RootLib;
-
   // ── Hop 1: find FileNodes that directly IMPORT this lib (reverse IMPORTS) ─
 
   // IMPORTS is directed FileNode → LibNode.
   // We want callers, so traverse IN reverse direction.
   INT hop = 1;
 
-  DirectImporters = SELECT f
-    FROM RootLib:l - (IMPORTS:e BY GT) - FileNode:f
-    // GT = generic traversal respecting edge direction; reversed for incoming.
-    WHERE f NOT IN @@visited
-    ACCUM f.@depth += hop
-    POST-ACCUM @@visited += f;
+  AllFiles = { FileNode.* };
 
-  // Collect direct importers into results.
-  DirectImporters = SELECT f FROM DirectImporters:f
-    POST-ACCUM @@results += FileImpact(f.path, f.repo, f.@depth);
+  DirectImporters = SELECT f
+    FROM AllFiles:f - (IMPORTS:e) -> LibNode:l
+    WHERE f NOT IN @@visited AND l.name == lib_name
+      ACCUM f.@depth += hop
+      POST-ACCUM @@visited += f,
+         @@result_files += f;
 
   // CurrentFiles grows hop-by-hop as we follow CALLS edges outward.
   CurrentFiles (ANY) = DirectImporters;
@@ -74,11 +69,8 @@ CREATE QUERY blastRadius (
       FROM CurrentFiles:f - (CALLS:e) -> FileNode:nbr
       WHERE nbr NOT IN @@visited
       ACCUM nbr.@depth += hop
-      POST-ACCUM @@visited += nbr;
-
-    // Accumulate newly reached files at this depth.
-    CurrentFiles = SELECT f FROM CurrentFiles:f
-      POST-ACCUM @@results += FileImpact(f.path, f.repo, f.@depth);
+      POST-ACCUM @@visited += nbr,
+                 @@result_files += nbr;
 
     hop = hop + 1;
 
@@ -86,9 +78,7 @@ CREATE QUERY blastRadius (
 
   // ── Emit results ordered by depth ASC, path ASC ─────────────────────────
 
-  // GSQL does not support ORDER BY on ListAccum directly.
-  // Sort is handled by the Python client after deserialising @@results.
-  PRINT @@results AS blast_radius;
+  PRINT @@result_files AS blast_radius;
 }
 
 INSTALL QUERY blastRadius
