@@ -53,7 +53,7 @@ set +a
 
 ### Installation
 ```bash
-git clone https://github.com/ayushsi42/raven.git
+git clone https://github.com/Av1ralS1ngh/RAVEN.git
 cd raven
 python -m venv .venv && source .venv/bin/activate
 pip install -e .
